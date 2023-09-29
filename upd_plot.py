@@ -8,8 +8,10 @@ import serial, time
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QLineEdit, QComboBox
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QThread, QObject, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QFont
 
 from pyqtgraph import PlotWidget, plot
+from pyqtgraph.Qt import QtGui
 import pyqtgraph as pg
 
 import sys
@@ -24,7 +26,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __del__(self):
         self.axisX.reset()
         self.controller.stop()
-        self.vega.close()
+        # self.vega.close()
         self.timer.stop()
         self.termal_timer.stop()
 
@@ -42,9 +44,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.graphWidget.plotItem.setMouseEnabled(x=False)
         self.graphWidget.plotItem.setMouseEnabled(y=False)
 
+        font=QtGui.QFont()
+        font.setPixelSize(20)
+        self.graphWidget.getAxis("bottom").setTickFont(font)
+        self.graphWidget.getAxis("left").setTickFont(font)
+        
+
         pen = pg.mkPen(color=(0, 255, 0), width=8, style=QtCore.Qt.SolidLine)
 
-        self.data_line =  self.graphWidget.plot(self.x, self.y, name="Sensor 1",  pen=pen)
+        self.data_line = self.graphWidget.plot(self.x, self.y, name="my plot",  pen=pen)
 
         
         self.angles = self.from_file_to_list("sort_angles.txt")
@@ -52,13 +60,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
         # self.init_Xeryon("/dev/ttyACM0")
-        # self.init_Vega("/dev/ttyUSB1")
+        # # self.init_Vega("/dev/ttyUSB1")
         # self.init_Rigol()
         # self.ser = self.init_termal("/dev/ttyUSB0")
 
         self.timer = QtCore.QTimer()
         self.timer.setInterval(250)
         self.timer.timeout.connect(self.update_plot)
+        # self.timer.setInterval(21000)
+        # self.timer.timeout.connect(self.save_data_to_file)
 
         self.termal_timer = QtCore.QTimer()
         self.termal_timer.setInterval(15000)
@@ -104,6 +114,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Set angle
         set_ang_layout = QHBoxLayout()
+        self.step_choice = QComboBox(self)
+        self.step_choice.addItem("Выбор Шага(0.05 по умолчанию):")
+        self.step_choice.addItem("0.05")
+        self.step_choice.addItem("0.1")
+        self.step_choice.addItem("0.5")
+        self.step_choice.addItem("1")
         set_ang_button = QPushButton("Установить угол")
         set_ang_button.clicked.connect(self.set_ang_button_clicked)
         save_to_file_button = QPushButton("Сохранить данные в файл")
@@ -111,6 +127,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.set_ang_line_edit = QLineEdit("")
         self.label_cur_vcc = QLabel("")
         self.label_cur_vcc.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        set_ang_layout.addWidget(self.step_choice)
         set_ang_layout.addWidget(set_ang_button)
         set_ang_layout.addWidget(self.set_ang_line_edit)
         set_ang_layout.addWidget(self.label_cur_vcc)
@@ -158,14 +175,46 @@ class MainWindow(QtWidgets.QMainWindow):
         #     print(list[i])
         return list
     
-    def save_data_to_file(self, x, y):
-        i = 0
-        with open("user_data.txt", "w") as txt_file:
-            for line in x:
-                if i == len(y) - 1:
-                    break
-                txt_file.write(" ".join(line) + " " + " ".join(y[i])+ "\n")
-                i += 1
+
+    epos = 0
+    dpos = 0
+    step = 0.05
+    value = []
+    # i = 0
+    stop_do_it = 0
+
+    def save_data_to_file(self):
+
+        file = open("user_data.txt", "w+")
+        for index in range(len(self.angles)):
+            st = str(float(self.wave_numbers[index])) + " " + str(float(self.angles[index])) + "\n"
+            file.write(st)
+        file.close()
+
+        ##experiment
+        # if not self.stop_do_it:
+        #     self.axisX.setDPOS(self.cur_ang)
+        #     for i in range(0, 100):
+        #         self.value.append(float(self.osc[2].get_vpp()) * float(1000))
+        #         time.sleep(0.2)
+        #         # i += 1
+            
+        #     filename = "./test/" + str(float(self.axisX.getEPOS())) + "_" + str(round(float(self.cur_ang), 2)) + ".txt"
+            
+            
+        #     file = open(filename, "w")
+        #     for index in range(100):
+        #         st = str(float(self.value[index])) + "\n"
+        #         file.write(st)
+        #     file.close()
+
+            
+        #     self.cur_ang -= self.step
+        #     self.value.clear()
+            
+        #     if self.cur_ang < round(float(93), 2):
+        #         self.value.clear()
+        #         self.stop_do_it = 1
                 
     
 
@@ -198,12 +247,13 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.axisX.setDPOS(float(self.start_line_edit.text()))
             self.cur_ang = float(self.axisX.getDPOS())
-            self.cur_ang = 200
             self.timer.start()
             self.wave_indx = 0
             self.x.clear()
             self.y.clear()
             self.stop_plot = 1
+            print(self.stop_plot)
+            self.stop_do_it = 0
 
     def stop_button_clicked(self):
         self.timer.stop()
@@ -220,6 +270,7 @@ class MainWindow(QtWidgets.QMainWindow):
     y = []
     stop_plot = 0
 
+    i = 0
     def update_plot(self):
         if self.stop_plot == 0:
             self.timer.stop()
@@ -240,12 +291,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 else:
                     time.sleep(3)
                     self.y.append(float(self.vega.get_power()) * float(1000))
-              
+
+
                 self.data_line.setData(self.x, self.y)
               ####
                 self.wave_indx += 1
 
-            self.cur_ang -= 0.05
+            if self.step_choice.currentText() != "Выбор Шага(0.05 по умолчанию):":
+                self.cur_ang -= round(float(self.step_choice.currentText()), 2)
+            else:
+                self.cur_ang -= 0.05
 
             if self.wave_indx > 140 or round(self.cur_ang, 2) < round(float(self.stop_line_edit.text()), 2):
                 self.stop_plot = 0
