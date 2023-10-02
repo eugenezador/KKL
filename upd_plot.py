@@ -59,10 +59,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wave_numbers = self.from_file_to_list("wave_numbers.txt")
 
 
-        # self.init_Xeryon("/dev/ttyACM0")
-        # # self.init_Vega("/dev/ttyUSB1")
-        # self.init_Rigol()
-        # self.ser = self.init_termal("/dev/ttyUSB0")
+        self.init_Xeryon("/dev/ttyACM0")
+        # self.init_Vega("/dev/ttyUSB1")
+        self.init_Rigol()
+        self.ser = self.init_termal("/dev/ttyUSB0")
 
         self.timer = QtCore.QTimer()
         self.timer.setInterval(250)
@@ -180,7 +180,6 @@ class MainWindow(QtWidgets.QMainWindow):
     dpos = 0
     step = 0.05
     value = []
-    # i = 0
     stop_do_it = 0
 
     def save_data_to_file(self):

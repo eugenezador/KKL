@@ -55,3 +55,4 @@ TRGP=1000	% Trigger pitch
 TRGW=500	% Trigger width
 TRGS=0	% Trigger start
 TRGN=1000	% Number of trigger pulses
+ENBL=1
