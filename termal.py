@@ -5,7 +5,11 @@ import serial, time
 SERIALPORT = "/dev/ttyUSB0"
 BAUDRATE = 115200
 
-ser = serial.Serial(SERIALPORT, BAUDRATE)
+try:
+    ser = serial.Serial(SERIALPORT, BAUDRATE)
+except FileNotFoundError as e:
+    print ("FILE NOT FOUND")
+
 
 ser.bytesize = serial.EIGHTBITS #number of bits per bytes
 

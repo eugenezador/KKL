@@ -1,3 +1,4 @@
+from pathlib import Path
 import time
 import os
 import numpy as np
@@ -17,7 +18,8 @@ class _Usbtmc(object):
     '''
     def __init__(self, usbtmc_dev_number):
         usbtmc = '/dev/usbtmc' + str(usbtmc_dev_number)
-        self._dev = os.open(usbtmc, os.O_RDWR)
+        if Path(usbtmc).exists():
+            self._dev = os.open(usbtmc, os.O_RDWR)
 
     def _write(self, command):
         '''
