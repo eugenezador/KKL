@@ -91,9 +91,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wave_numbers = self.from_file_to_list("wave_numbers.txt")
 
 
-        self.init_Xeryon("/dev/ttyACM0")
+        # self.init_Xeryon("/dev/ttyACM0")
         # self.init_Vega("/dev/ttyUSB1")
-        self.init_Rigol()
+        # self.init_Rigol()
         self.ser = self.init_termal("/dev/ttyUSB0")
 
         self.timer = QtCore.QTimer()
@@ -379,7 +379,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ser.parity = serial.PARITY_EVEN #set parity check: no parity
             ser.stopbits = serial.STOPBITS_ONE #number of stop bits
             ser.timeout = 2              #timeout block read
-            ser.xonxoff = True     #disable software flow control
+            ser.xonxoff = False     #disable software flow control
             ser.rtscts = False     #disable hardware (RTS/CTS) flow control
             ser.dsrdtr = False       #disable hardware (DSR/DTR) flow control
             ser.writeTimeout = 0     #timeout for writereturn ser
@@ -396,25 +396,32 @@ class MainWindow(QtWidgets.QMainWindow):
             enable_status = ""
             if not self.ser.isOpen():
                 self.ser.open()
+                print("COM NOT open !")
+            else:
+                print("COM open !")
 
             if self.ser.isOpen():
+                print("COM port open !!! 111")
 
                 try:
-                    self.ser.flushInput() #flush input buffer, discarding all its contents
-                    self.ser.flushOutput()#flush output buffer, aborting current output
-                
-                # self.ser.write(b"ps\r")
+                    print("0write data: " + command)
+                    # self.ser./Output()#flush output buffer, aborting current output
+
                     command = command + '\r'
-                    command = str.encode(command)
+                    print("01write data: " + command)       
+                    command = command.encode('ascii')
+                    # command = bytes(command,"ascii")
+                    print("1write data: " + command)
                     self.ser.write(command)
-                # print("write data: " + command)
+                    print("2write data: " + command)
                     time.sleep(0.5)
 
                     time.sleep(0.5)
                     numberOfLine = 0
 
                     while True:
-                        response = self.ser.readline().decode('ascii', errors='ignore')
+                        print("before")
+                        response = self.ser.readline()#.decode('ascii', errors='ignore')
                         print("read data: " + response)
 
                         if "Ist" in response:

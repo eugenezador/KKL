@@ -21,7 +21,7 @@ ser.stopbits = serial.STOPBITS_ONE #number of stop bits
 
 #ser.timeout = 0             #non-block read
 
-ser.timeout = 2              #timeout block read
+ser.timeout = 4              #timeout block read
 
 ser.xonxoff = True     #disable software flow control
 
