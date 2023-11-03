@@ -366,7 +366,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal_enable_status = 0
 
     def update_termal_status(self):
-        self.termal_send_command("ps")
+        self.termal_send_command("gist 0")
 
     def init_termal(self, device_name):
         # device_file = Path(device_name)
@@ -416,13 +416,14 @@ class MainWindow(QtWidgets.QMainWindow):
                     print("2write data: " + command)
                     time.sleep(0.5)
 
-                    time.sleep(0.5)
+                    # time.sleep(0.5)
                     numberOfLine = 0
 
                     while True:
                         print("before")
                         response = self.ser.readline()#.decode('ascii', errors='ignore')
                         print("read data: " + response)
+                        # print(data_left)
 
                         if "Ist" in response:
                             current_temp = re.findall("\d+\.\d+", response)
