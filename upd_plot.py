@@ -366,7 +366,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal_enable_status = 0
 
     def update_termal_status(self):
-        self.termal_send_command("ps")
+        self.termal_send_command("gist 0")
 
     def init_termal(self, device_name):
         # device_file = Path(device_name)
@@ -379,7 +379,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ser.parity = serial.PARITY_EVEN #set parity check: no parity
             ser.stopbits = serial.STOPBITS_ONE #number of stop bits
             ser.timeout = 2              #timeout block read
-            ser.xonxoff = True     #disable software flow control
+            ser.xonxoff = False     #disable software flow control
             ser.rtscts = False     #disable hardware (RTS/CTS) flow control
             ser.dsrdtr = False       #disable hardware (DSR/DTR) flow control
             ser.writeTimeout = 0     #timeout for writereturn ser
@@ -405,17 +405,27 @@ class MainWindow(QtWidgets.QMainWindow):
                 
                 # self.ser.write(b"ps\r")
                     command = command + '\r'
-                    command = str.encode(command)
+                    command = command.encode('ascii') #= str.encode('ascii')
+                    # command = str.encode(command)
                     self.ser.write(command)
                 # print("write data: " + command)
                     time.sleep(0.5)
 
-                    time.sleep(0.5)
+                    # time.sleep(0.5)
                     numberOfLine = 0
 
                     while True:
-                        response = self.ser.readline().decode('ascii', errors='ignore')
+                        # response = ""
+                        data_left = self.ser.inWaiting()  # Get the number of characters ready to be read
+                        print(data_left)
+                        response1 = self.ser.read(data_left)
+                        print("read data: " + hex(response1))
+                        
+                        # response = self.ser.readline()
+                        # time.sleep(0.5)
+                        response = response1.decode('ascii', errors='ignore')
                         print("read data: " + response)
+                        # print(data_left)
 
                         if "Ist" in response:
                             current_temp = re.findall("\d+\.\d+", response)
