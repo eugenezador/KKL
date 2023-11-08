@@ -24,6 +24,7 @@ class Worker(QObject):
         while self.running:
             time.sleep(1)
             print("in do work\n")
+            print(self.running)
             self.progress.emit(plotting_data)
 
         print("loop finished")
@@ -89,6 +90,7 @@ class MainWindow(QMainWindow):
         self.show()
 
     def start(self):
+        self.i = 10
         self.btn_start.setEnabled(False)
         self.plotting_data = 1
         # self.progress_bar.setMaximum(n)
@@ -103,7 +105,7 @@ class MainWindow(QMainWindow):
         self.i += 1
         print(self.i)
 
-        if float(self.i) > float(14):
+        if float(self.i) > float(20):
             print("in here")
             self.worker.running = False
 
