@@ -86,20 +86,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.angles = self.from_file_to_list("sort_angles.txt")
         self.wave_numbers = self.from_file_to_list("wave_numbers.txt")
 
-        # self.init_Xeryon("/dev/ttyACM0")
-        # self.init_Vega("/dev/ttyUSB1")
-        # self.init_Rigol()
+        self.init_Xeryon("/dev/ttyACM0")
+        self.init_Vega("/dev/ttyUSB1")
+        self.init_Rigol()
         self.ser = self.init_termal("/dev/ttyUSB0")
 
         self.timer = QtCore.QTimer()
         self.timer.setInterval(3000)
         self.timer.timeout.connect(self.update_plot)
-        # self.timer.setInterval(21000)
-        # self.timer.timeout.connect(self.save_data_to_file)
 
         self.termal_timer = QtCore.QTimer()
-        # # self.termal_timer.setInterval(15000)
-        # self.termal_timer.timeout.connect(self.update_termal_status)
+        self.termal_timer.setInterval(15000)
+        self.termal_timer.timeout.connect(self.update_termal_status)
         self.termal_timer.start()
 
         start_button = QPushButton("СТАРТ")
@@ -199,6 +197,8 @@ class MainWindow(QtWidgets.QMainWindow):
             # Change voltage range of channel 1 to 50mV/div.
             self.osc[2].set_vertical_scale_V(0.02)
 
+
+################### --Integral-- #######################
     x_value = []
     y_value = []
 
@@ -208,14 +208,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
         summ = 0
         for indx in range(len(self.x_value) - 1):
-            half = (float(self.x_value[indx]) -
-                    float(self.x_value[indx + 1])) / 2
+            half = (self.x_value[indx + 1] -
+                    self.x_value[indx]) / 2
 
-            step = float(self.y_value[indx]) + float(self.y_value[indx + 1])
+            step = self.y_value[indx] + self.y_value[indx + 1]
             summ += half * step
         if summ < 0:
             summ *= -1
 
+        self.graphWidget.plot(self.x_value, self.y_value)
+        print("res: ")
         print(summ)
         return summ
 
@@ -223,10 +225,15 @@ class MainWindow(QtWidgets.QMainWindow):
         file1 = open(filemane, 'r')
         Lines = file1.readlines()
         for line in Lines:
-            # value before comma exept comma
-            self.x_value.append(''.join(re.findall("^(.+?),", line)))
-            # value after comma except comma
-            self.y_value.append(''.join(re.findall("^(.+?),", line)))
+            if float(''.join(re.findall("[^,]*,(.*)", line))) < float(0.025) and float(''.join(re.findall("^(.+?),", line))) > float(4e-08):
+                # value before comma exept comma
+                self.x_value.append(
+                    float(''.join(re.findall("^(.+?),", line))))
+                # value after comma except comma
+                self.y_value.append(
+                    float(''.join(re.findall("[^,]*,(.*)", line))))
+
+##############################
 
     def from_file_to_list(self, filemane):
         list = []
@@ -247,36 +254,12 @@ class MainWindow(QtWidgets.QMainWindow):
     stop_do_it = 0
 
     def save_data_to_file(self):
-
         file = open("user_data.txt", "w+")
         for index in range(len(self.angles)):
             st = str(float(self.wave_numbers[index])) + \
                 " " + str(float(self.angles[index])) + "\n"
             file.write(st)
         file.close()
-
-        # experiment
-        # if not self.stop_do_it:
-        #     self.axisX.setDPOS(self.cur_ang)
-        #     for i in range(0, 100):
-        #         self.value.append(float(self.osc[2].get_vpp()) * float(1000))
-        #         time.sleep(0.2)
-        #         # i += 1
-
-        #     filename = "./test/" + str(float(self.axisX.getEPOS())) + "_" + str(round(float(self.cur_ang), 2)) + ".txt"
-
-        #     file = open(filename, "w")
-        #     for index in range(100):
-        #         st = str(float(self.value[index])) + "\n"
-        #         file.write(st)
-        #     file.close()
-
-        #     self.cur_ang -= self.step
-        #     self.value.clear()
-
-        #     if self.cur_ang < round(float(93), 2):
-        #         self.value.clear()
-        #         self.stop_do_it = 1
 
     def set_ang_button_clicked(self):
         if self.is_xeryon_exist == 1:
@@ -300,8 +283,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 return self.binary_search(arr, mid + 1, high, x)
         else:
             return -1
-
-    # def under_plot_area(self):
 
     def start_button_clicked(self):
         if self.is_xeryon_exist == 1:
@@ -387,7 +368,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal_enable_status = 0
 
     def update_termal_status(self):
-        # self.termal_send_command("gsoll")
         self.termal_send_command("gist")
         # self.termal_send_command("ps")
 
@@ -399,7 +379,7 @@ class MainWindow(QtWidgets.QMainWindow):
             BAUDRATE = 115200
             ser = serial.Serial(SERIALPORT, BAUDRATE)
             ser.bytesize = serial.EIGHTBITS  # number of bits per bytes
-            ser.parity = serial.PARITY_NONE  # set parity check: no parity
+            ser.parity = serial.PARITY_EVEN  # set parity check: no parity
             ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
             ser.timeout = 2  # timeout block read
             ser.writeTimeout = 0  # timeout for writereturn ser
@@ -421,12 +401,12 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.ser.flushInput()  # flush input buffer, discarding all its contents
                     self.ser.flushOutput()  # flush output buffer, aborting current output
 
-                    # command = command + '\r'
-                    self.ser.write((command + '\r').encode('ascii'))
+                    command += '\r'
+                    self.ser.write(command.encode('ascii'))
 
                     time.sleep(0.5)
 
-                    # time.sleep(0.5)
+                    time.sleep(0.5)
                     numberOfLine = 0
 
                     print("start reading")
@@ -438,7 +418,7 @@ class MainWindow(QtWidgets.QMainWindow):
                             print("finish reading")
                             break
 
-                        if command == 'gist':
+                        if response != '':
                             current_temp = re.findall("\d+\.\d+", response)
                         numberOfLine = numberOfLine + 1
 
