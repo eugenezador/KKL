@@ -44,6 +44,8 @@ class Worker(QObject):
 
 class MainWindow(QtWidgets.QMainWindow):
 
+    work_requested = Signal(int)
+
     def __del__(self):
         if self.is_xeryon_exist == 1:
             self.axisX.reset()
@@ -108,16 +110,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.init_Rigol()
         self.ser = self.init_termal("/dev/ttyUSB0")
 
-        self.timer = QtCore.QTimer()
-        self.timer.setInterval(3000)
-        self.timer.timeout.connect(self.update_plot)
+        # self.timer = QtCore.QTimer()
+        # self.timer.setInterval(3000)
+        # self.timer.timeout.connect(self.update_plot)
+        #################################
+
+        self.worker = Worker()
+        self.worker_thread = QThread()
+
+        self.worker.progress.connect(self.update_plot)
+        # self.worker.completed.connect(self.complete)
+
+        self.work_requested.connect(self.worker.do_work)
+
+        # move worker to the worker thread
+        self.worker.moveToThread(self.worker_thread)
+
+        # start the thread
+        self.worker_thread.start()
+        #################################
 
         self.termal_timer = QtCore.QTimer()
         self.termal_timer.setInterval(15000)
         self.termal_timer.timeout.connect(self.update_termal_status)
         self.termal_timer.start()
 
-        start_button = QPushButton("СТАРТ")
+        start_button = QPushButton("СТАРТ", clicked=self.start_button_clicked)
         start_button.clicked.connect(self.start_button_clicked)
 
         stop_button = QPushButton("СТОП")
@@ -316,6 +334,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.stop_plot = 1
                 print(self.stop_plot)
                 self.stop_do_it = 0
+                self.work_requested.emit(n)
 
     def stop_button_clicked(self):
         self.intergal_per_area()
