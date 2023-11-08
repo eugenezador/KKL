@@ -8,7 +8,7 @@ import time
 
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QPushButton, QVBoxLayout,  QCheckBox, QHBoxLayout, QLabel, QFrame, QLineEdit, QComboBox
 from PyQt5 import QtWidgets, QtCore
-from PyQt5.QtCore import QThread, QObject, pyqtSignal, pyqtSlot
+
 from PyQt5.QtGui import QFont
 
 from pyqtgraph import PlotWidget, plot
@@ -23,6 +23,23 @@ from threading import Thread
 
 
 from pathlib import Path
+
+
+from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slot
+
+
+class Worker(QObject):
+    progress = Signal(int)
+    completed = Signal(int)
+
+    @Slot(int)
+    def do_work(self, n):
+        for i in range(1, n+1):
+            time.sleep(1)
+            print("in do work\n")
+            self.progress.emit(i)
+
+        self.completed.emit(i)
 
 
 class MainWindow(QtWidgets.QMainWindow):
