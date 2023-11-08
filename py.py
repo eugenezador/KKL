@@ -105,9 +105,9 @@ class MainWindow(QMainWindow):
         self.i += 1
         print(self.i)
 
-        if float(self.i) > float(20):
-            print("in here")
-            self.worker.running = False
+        # if float(self.i) >= float(20):
+        #     print("in here")
+        #     self.worker.running = False
 
         self.graphWidget.plot(self.x_value, self.y_value)
 
@@ -120,8 +120,9 @@ class MainWindow(QMainWindow):
         self.x_value.append(self.i)
         self.y_value.append(1/self.i)
         self.i += 1
+        self.worker.running = False
 
-        self.graphWidget.plot(self.x_value, self.y_value)
+        # self.graphWidget.plot(self.x_value, self.y_value)
 
 
 if __name__ == '__main__':
