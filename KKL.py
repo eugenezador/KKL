@@ -29,17 +29,31 @@ from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slo
 
 
 class Worker(QObject):
-    progress = Signal(int)
-    completed = Signal(int)
+    progress = Signal()
+    # completed = Signal(int)
+    is_working = False
 
     @Slot(int)
     def do_work(self, n):
-        for i in range(1, n+1):
+        self.is_working = True
+        while self.is_working:
             time.sleep(1)
             print("in do work\n")
-            self.progress.emit(i)
+            self.progress.emit()
 
-        self.completed.emit(i)
+
+class Termal_Worker(QObject):
+    progress = Signal()
+    # completed = Signal(int)
+    is_working = False
+
+    @Slot(int)
+    def do_work(self, n):
+        self.is_working = True
+        while self.is_working:
+            time.sleep(1)
+            print("in do work\n")
+            self.progress.emit()
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -47,10 +61,12 @@ class MainWindow(QtWidgets.QMainWindow):
     work_requested = Signal(int)
 
     def __del__(self):
-        if self.is_xeryon_exist == 1:
+        if self.is_xeryon_exist:
             self.axisX.reset()
             self.controller.stop()
-        # self.vega.close()
+        if self.is_Vega_exist:
+            self.vega.close()
+
         # self.timer.stop()
         # self.termal_timer.stop()
 
@@ -208,29 +224,48 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal_on_button_clicked()
         # self.update_termal_status()
 
-    is_xeryon_exist = 0
+    is_xeryon_exist = False
+    is_termal_exist = False
+    is_Rigol_exist = False
+    is_Vega_exist = False
 
     def init_Xeryon(self, device_name):
-        # device_file = Path(device_name)
         if Path(device_name).exists():
             self.controller = Xeryon(device_name, 115200)
             self.axisX = self.controller.addAxis(Stage.XRTU_30_109, "X")
             self.controller.start()
             self.axisX.findIndex()
             self.axisX.setUnits(Units.deg)
-            self.is_xeryon_exist = 1
+            self.is_xeryon_exist = True
             self.Xeryon_cbox.setChecked(True)
 
     def init_Vega(self, device_name):
         if Path(device_name).exists():
+            self.is_Vega_exist = True
             self.vega = Ophir.VegaPowerMeter(device_name, 9600)
 
     def init_Rigol(self):
         if glob('/dev/usbtmc*'):
+            self.is_Rigol_exist = True
             self.Rigol_cbox.setChecked(True)
             self.osc = rigol2000a.Rigol2072a()
             # Change voltage range of channel 1 to 50mV/div.
             self.osc[2].set_vertical_scale_V(0.02)
+
+    def init_termal(self, device_name):
+        # device_file = Path(device_name)
+        if Path(device_name).exists():
+            self.Termal_cbox.setChecked(True)
+            SERIALPORT = device_name
+            BAUDRATE = 115200
+            ser = serial.Serial(SERIALPORT, BAUDRATE)
+            ser.bytesize = serial.EIGHTBITS  # number of bits per bytes
+            ser.parity = serial.PARITY_EVEN  # set parity check: no parity
+            ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
+            ser.timeout = 2  # timeout block read
+            ser.writeTimeout = 0  # timeout for writereturn ser
+            self.is_termal_exist = True
+            return ser
 
 
 ################### --Integral-- #######################
@@ -297,7 +332,7 @@ class MainWindow(QtWidgets.QMainWindow):
         file.close()
 
     def set_ang_button_clicked(self):
-        if self.is_xeryon_exist == 1:
+        if self.is_xeryon_exist:
             self.axisX.setDPOS(self.set_ang_line_edit.text())
             if (self.device_choice.currentText() == "RIGOL Oscilloscope"):
                 self.label_cur_vcc.setText(
@@ -320,13 +355,21 @@ class MainWindow(QtWidgets.QMainWindow):
             return -1
 
     def start_button_clicked(self):
-        if self.is_xeryon_exist == 1:
+        if self.is_xeryon_exist:
             if re.findall("\d+\.\d+", str(self.start_line_edit.text())) == "" or re.findall("\d+\.\d+", str(self.stop_line_edit.text())) == "":
                 self.label_status.setText("Введите число в фромате dddd.dddd")
                 time.sleep(1)
             else:
-                self.axisX.setDPOS(float(self.start_line_edit.text()))
-                self.cur_ang = float(self.axisX.getDPOS())
+                self.cur_ang = round(float(self.start_line_edit.text()), 2)
+                self.angles_indx = 0
+                while float(self.cur_ang, 2) != float(self.angles[self.angles_indx]):
+                    if float(self.cur_ang, 2) > float(self.angles[self.angles_indx]):
+                        self.cur_ang -= 0.05
+                    elif self.angles_indx < len(self.angles):
+                        self.angles_indx += 1
+
+                self.axisX.setDPOS(float(self.cur_ang))
+
                 self.timer.start()
                 self.wave_indx = 0
                 self.x.clear()
@@ -334,18 +377,20 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.stop_plot = 1
                 print(self.stop_plot)
                 self.stop_do_it = 0
-                self.work_requested.emit(n)
+                self.work_requested.emit()
 
     def stop_button_clicked(self):
-        self.intergal_per_area()
+        # self.intergal_per_area()
         self.timer.stop()
-        if self.is_xeryon_exist == 1:
+        if self.is_xeryon_exist:
             self.axisX.reset()
             self.controller.stop()
-        # self.vega.close()
+
+        self.worker.is_working = False
 
     cur_ang = 0
     wave_indx = 0
+    angles_indx = 0
     angles = []
     wave_numbers = []
     x = []
@@ -359,39 +404,30 @@ class MainWindow(QtWidgets.QMainWindow):
             self.timer.stop()
         else:
             # print("cur_ang ", self.cur_ang)
+            self.axisX.setDPOS(self.angles[self.angles_indx])
+            #
+            time.sleep(0.1)
+            #   Rigol or Vega
+            self.x.append(float(self.wave_numbers[self.wave_indx]))
 
-            # is_good_angle = self.binary_search(self.angles, 0, len(self.angles)-1, round(self.cur_ang, 2))
-            is_good_angle = 1
-            if is_good_angle != -1:
-                self.axisX.setDPOS(self.cur_ang)
-              #
-                time.sleep(0.1)
-              # Rigol or Vega
-                # self.x.append(float(self.wave_numbers[self.wave_indx]))
+            if (self.device_choice.currentText() == "RIGOL Oscilloscope") and self.is_Rigol_exist:
+                # self.intergal_per_area()
+                self.y.append(float(self.osc[2].get_vpp()) * float(1000))
+            elif self.is_Vega_exist:
+                time.sleep(3)
+                self.y.append(float(self.vega.get_power()) * float(1000))
 
-                # if (self.device_choice.currentText() == "RIGOL Oscilloscope"):
-                #     self.y.append(float(self.osc[2].get_vpp()) * float(1000))
-                # else:
-                #     time.sleep(3)
-                #     self.y.append(float(self.vega.get_power()) * float(1000))
+            self.data_line.setData(self.x, self.y)
 
-                # self.data_line.setData(self.x, self.y)
-              ####
-                self.wave_indx += 1
+            self.wave_indx += 1
+            self.angles_indx += 1
 
-            if self.step_choice.currentText() != "Выбор Шага(0.05 по умолчанию):":
-                self.cur_ang -= round(float(self.step_choice.currentText()), 2)
-            else:
-                self.cur_ang -= 0.05
-
-            # if self.wave_indx > 140 or round(self.cur_ang, 2) < round(float(self.stop_line_edit.text()), 2):
-            #     self.stop_plot = 0
             if round(self.cur_ang, 2) < round(float(self.stop_line_edit.text()), 2):
                 self.stop_plot = 0
+                self.worker.is_working = False
 
 # ---------Termal-------------
     termal_enable_status = 0
-    is_termal_exist = 0
 
     def termal_on_button_clicked(self):
         self.termal_timer.start()
@@ -407,27 +443,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal_send_command("gist")
         # self.termal_send_command("ps")
 
-    def init_termal(self, device_name):
-        # device_file = Path(device_name)
-        if Path(device_name).exists():
-            self.Termal_cbox.setChecked(True)
-            SERIALPORT = device_name
-            BAUDRATE = 115200
-            ser = serial.Serial(SERIALPORT, BAUDRATE)
-            ser.bytesize = serial.EIGHTBITS  # number of bits per bytes
-            ser.parity = serial.PARITY_EVEN  # set parity check: no parity
-            ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
-            ser.timeout = 2  # timeout block read
-            ser.writeTimeout = 0  # timeout for writereturn ser
-            self.is_termal_exist = 1
-            return ser
-
     def termal_send_command(self, command):
-        if self.is_termal_exist == 1:
+        if self.is_termal_exist:
             str_temp = ""
             current_temp = ""
-            desire_temp = ""
-            enable_status = ""
+
             if not self.ser.isOpen():
                 self.ser.open()
 
