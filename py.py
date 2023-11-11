@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
         self.worker.moveToThread(self.worker_thread)
 
         # start the thread
-        # self.worker_thread.start()
+        self.worker_thread.start()
 
         # show the window
         self.show()

@@ -33,7 +33,7 @@ class Worker(QObject):
     # completed = Signal(int)
     is_working = False
 
-    @Slot(int)
+    @Slot()
     def do_work(self, n):
         self.is_working = True
         while self.is_working:
@@ -47,7 +47,7 @@ class Termal_Worker(QObject):
     # completed = Signal(int)
     is_working = False
 
-    @Slot(int)
+    @Slot()
     def do_work(self, n):
         self.is_working = True
         while self.is_working:
@@ -58,7 +58,8 @@ class Termal_Worker(QObject):
 
 class MainWindow(QtWidgets.QMainWindow):
 
-    work_requested = Signal(int)
+    work_requested = Signal()
+    termal_work_requested = Signal()
 
     def __del__(self):
         if self.is_xeryon_exist:
@@ -146,10 +147,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.worker_thread.start()
         #################################
 
-        self.termal_timer = QtCore.QTimer()
-        self.termal_timer.setInterval(15000)
-        self.termal_timer.timeout.connect(self.update_termal_status)
-        self.termal_timer.start()
+        # self.termal_timer = QtCore.QTimer()
+        # self.termal_timer.setInterval(15000)
+        # self.termal_timer.timeout.connect(self.update_termal_status)
+        # self.termal_timer.start()
+
+        ########### TERMAL WORKER ############
+        self.termal_worker = Termal_Worker()
+        self.termal_worker_thread = QThread()
+
+        self.termal_worker.progress.connect(self.update_termal_status)
+
+        self.termal_work_requested.connect(self.termal_worker.do_work)
+
+        # move worker to the worker thread
+        self.termal_worker.moveToThread(self.termal_worker_thread)
+
+        # start the thread
+        self.termal_worker_thread.start()
+        #######################################
 
         start_button = QPushButton("СТАРТ", clicked=self.start_button_clicked)
         start_button.clicked.connect(self.start_button_clicked)
@@ -222,7 +238,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(widget)
 
         self.termal_on_button_clicked()
-        # self.update_termal_status()
 
     is_xeryon_exist = False
     is_termal_exist = False
@@ -370,7 +385,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 self.axisX.setDPOS(float(self.cur_ang))
 
-                self.timer.start()
+                # self.timer.start()
                 self.wave_indx = 0
                 self.x.clear()
                 self.y.clear()
@@ -381,7 +396,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def stop_button_clicked(self):
         # self.intergal_per_area()
-        self.timer.stop()
+        # self.timer.stop()
         if self.is_xeryon_exist:
             self.axisX.reset()
             self.controller.stop()
@@ -400,9 +415,7 @@ class MainWindow(QtWidgets.QMainWindow):
     i = 0
 
     def update_plot(self):
-        if self.stop_plot == 0:
-            self.timer.stop()
-        else:
+        if self.stop_plot != 0:
             # print("cur_ang ", self.cur_ang)
             self.axisX.setDPOS(self.angles[self.angles_indx])
             #
@@ -430,12 +443,12 @@ class MainWindow(QtWidgets.QMainWindow):
     termal_enable_status = 0
 
     def termal_on_button_clicked(self):
-        self.termal_timer.start()
+        # self.termal_timer.start()
         self.termal_send_command("enable")
         self.termal_enable_status = 1
 
     def termal_off_button_clicked(self):
-        self.termal_timer.stop()
+        # self.termal_timer.stop()
         self.termal_send_command("disable")
         self.termal_enable_status = 0
 
