@@ -462,21 +462,24 @@ class MainWindow(QtWidgets.QMainWindow):
 
                     time.sleep(0.5)
 
-                    time.sleep(0.5)
-                    numberOfLine = 0
+                    # time.sleep(0.5)
 
                     print("start reading")
                     print("my command = " + command)
                     while True:
                         response = self.ser.readline().decode('utf-8', errors='ignore')
                         print("----read data: " + response)
-                        if (response == '' or numberOfLine > 5):
+                        if response == '':
                             print("finish reading")
                             break
 
-                        if response != '':
+                        if command == 'gist':
                             current_temp = re.findall("\d+\.\d+", response)
-                        numberOfLine = numberOfLine + 1
+                            break
+
+                        if response == '01':
+                            str_temp = "01 ERROR"
+                            break
 
                     self.ser.close()
 
@@ -489,13 +492,12 @@ class MainWindow(QtWidgets.QMainWindow):
             if str_temp != "01 ERROR":
                 str_temp = "Температура лазера= " + \
                     ''.join(current_temp) + " С || " + \
-                    "Установленная температура лазера = 18"
+                    "Установленная температура лазера = 18 C "
                 if self.termal_enable_status == 1:
-                    str_temp += " С || Охлаждение Включено"
+                    str_temp += "|| Охлаждение Включено"
                 else:
-                    str_temp += " С || Охлаждение Выключено"
-            else:
-                str_temp = "01 ERROR"
+                    str_temp += "|| Охлаждение Выключено"
+
             self.label_status.setText(str_temp)
 
 
