@@ -93,21 +93,15 @@ class MainWindow(QMainWindow):
         self.i = 10
         self.btn_start.setEnabled(False)
         self.plotting_data = 1
-        # self.progress_bar.setMaximum(n)
         self.worker_thread.start()
         self.work_requested.emit(1)
 
     def update_progress(self, v):
         print("in update progress")
-        # self.progress_bar.setValue(v)
         self.x_value.append(self.i)
         self.y_value.append(1/self.i)
         self.i += 1
         print(self.i)
-
-        # if float(self.i) >= float(20):
-        #     print("in here")
-        #     self.worker.running = False
 
         self.graphWidget.plot(self.x_value, self.y_value)
 
@@ -116,13 +110,8 @@ class MainWindow(QMainWindow):
         self.btn_start.setEnabled(True)
 
     def test(self):
-        print("test")
-        self.x_value.append(self.i)
-        self.y_value.append(1/self.i)
-        self.i += 1
+        print("stop")
         self.worker.running = False
-
-        # self.graphWidget.plot(self.x_value, self.y_value)
 
 
 if __name__ == '__main__':

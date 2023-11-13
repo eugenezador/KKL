@@ -29,37 +29,27 @@ from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slo
 
 
 class Worker(QObject):
-    progress = Signal()
-    # completed = Signal(int)
+    progress = Signal(int)
+    completed = Signal(int)
     is_working = False
 
-    @Slot()
-    def do_work(self, n):
-        self.is_working = True
+    @Slot(int)
+    def do_work(self, counter):
         while self.is_working:
-            time.sleep(1)
+            time.sleep(counter)
             print("in do work\n")
-            self.progress.emit()
+            print(self.is_working)
+            self.progress.emit(counter)
 
+        print("loop finished")
+        self.completed.emit(counter)
 
-class Termal_Worker(QObject):
-    progress = Signal()
-    # completed = Signal(int)
-    is_working = False
-
-    @Slot()
-    def do_work(self, n):
-        self.is_working = True
-        while self.is_working:
-            time.sleep(1)
-            print("in do work\n")
-            self.progress.emit()
 
 
 class MainWindow(QtWidgets.QMainWindow):
 
-    work_requested = Signal()
-    termal_work_requested = Signal()
+    work_requested = Signal(int)
+    termal_work_requested = Signal(int)
 
     def __del__(self):
         if self.is_xeryon_exist:
@@ -68,8 +58,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.is_Vega_exist:
             self.vega.close()
 
-        # self.timer.stop()
-        # self.termal_timer.stop()
+        self.termal_worker.is_working = False
 
     def closeEvent(self, event):
         ret = QtWidgets.QMessageBox.warning(None, 'Внимание!', 'Лазер Выключен?',
@@ -89,9 +78,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Termal_cbox = QCheckBox("Охлаждение лазера")
         self.Rigol_cbox = QCheckBox("Осцилограф")
 
-        self.Xeryon_cbox.setCheckable(False)
-        self.Termal_cbox.setCheckable(False)
-        self.Rigol_cbox.setCheckable(False)
 
         device_list_layout = QHBoxLayout()
         device_list_layout.addWidget(self.Xeryon_cbox)
@@ -119,7 +105,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.data_line = self.graphWidget.plot(
             self.x, self.y, name="my plot",  pen=pen)
 
-        self.angles = self.from_file_to_list("sort_angles.txt")
+        self.angles = self.from_file_to_list("angles.txt")
         self.wave_numbers = self.from_file_to_list("wave_numbers.txt")
 
         self.init_Xeryon("/dev/ttyACM0")
@@ -127,16 +113,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.init_Rigol()
         self.ser = self.init_termal("/dev/ttyUSB0")
 
-        # self.timer = QtCore.QTimer()
-        # self.timer.setInterval(3000)
-        # self.timer.timeout.connect(self.update_plot)
-        #################################
+
+        ################  WORKER  #################
 
         self.worker = Worker()
         self.worker_thread = QThread()
 
         self.worker.progress.connect(self.update_plot)
-        # self.worker.completed.connect(self.complete)
+        self.worker.completed.connect(self.complete)
 
         self.work_requested.connect(self.worker.do_work)
 
@@ -147,18 +131,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.worker_thread.start()
         #################################
 
-        # self.termal_timer = QtCore.QTimer()
-        # self.termal_timer.setInterval(15000)
-        # self.termal_timer.timeout.connect(self.update_termal_status)
-        # self.termal_timer.start()
-
         ########### TERMAL WORKER ############
-        self.termal_worker = Termal_Worker()
+        self.termal_worker = Worker()
         self.termal_worker_thread = QThread()
 
         self.termal_worker.progress.connect(self.update_termal_status)
 
         self.termal_work_requested.connect(self.termal_worker.do_work)
+
+        self.termal_worker.completed.connect(self.complete)
 
         # move worker to the worker thread
         self.termal_worker.moveToThread(self.termal_worker_thread)
@@ -244,6 +225,11 @@ class MainWindow(QtWidgets.QMainWindow):
     is_Rigol_exist = False
     is_Vega_exist = False
 
+
+    def complete(self, v):
+        self.start_button.setEnabled(True)
+
+
     def init_Xeryon(self, device_name):
         if Path(device_name).exists():
             self.controller = Xeryon(device_name, 115200)
@@ -268,9 +254,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.osc[2].set_vertical_scale_V(0.02)
 
     def init_termal(self, device_name):
-        # device_file = Path(device_name)
         if Path(device_name).exists():
             self.Termal_cbox.setChecked(True)
+
             SERIALPORT = device_name
             BAUDRATE = 115200
             ser = serial.Serial(SERIALPORT, BAUDRATE)
@@ -280,6 +266,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ser.timeout = 2  # timeout block read
             ser.writeTimeout = 0  # timeout for writereturn ser
             self.is_termal_exist = True
+            
             return ser
 
 
@@ -357,17 +344,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.label_cur_vcc.setText(
                     "Мощность: " + str(round((float(self.vega.get_power()) * float(1000)), 2)) + " мВт")
 
-    def binary_search(self, arr, low, high, x):
-        if high >= low:
-            mid = (high + low) // 2
-            if round(float(arr[mid]), 2) == round(x, 2):
-                return mid
-            elif round(float(arr[mid]), 2) > round(x, 2):
-                return self.binary_search(arr, low, mid - 1, x)
-            else:
-                return self.binary_search(arr, mid + 1, high, x)
-        else:
-            return -1
+    # def binary_search(self, arr, low, high, x):
+    #     if high >= low:
+    #         mid = (high + low) // 2
+    #         if round(float(arr[mid]), 2) == round(x, 2):
+    #             return mid
+    #         elif round(float(arr[mid]), 2) > round(x, 2):
+    #             return self.binary_search(arr, low, mid - 1, x)
+    #         else:
+    #             return self.binary_search(arr, mid + 1, high, x)
+    #     else:
+    #         return -1
 
     def start_button_clicked(self):
         if self.is_xeryon_exist:
@@ -377,8 +364,8 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.cur_ang = round(float(self.start_line_edit.text()), 2)
                 self.angles_indx = 0
-                while float(self.cur_ang, 2) != float(self.angles[self.angles_indx]):
-                    if float(self.cur_ang, 2) > float(self.angles[self.angles_indx]):
+                while round(float(self.cur_ang), 2) != round(float(self.angles[self.angles_indx]), 2):
+                    if round(float(self.cur_ang), 2) > round(float(self.angles[self.angles_indx]), 2):
                         self.cur_ang -= 0.05
                     elif self.angles_indx < len(self.angles):
                         self.angles_indx += 1
@@ -392,16 +379,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.stop_plot = 1
                 print(self.stop_plot)
                 self.stop_do_it = 0
-                self.work_requested.emit()
+                self.work_requested.emit(2)
+                self.worker.is_working = True
 
     def stop_button_clicked(self):
         # self.intergal_per_area()
-        # self.timer.stop()
         if self.is_xeryon_exist:
             self.axisX.reset()
             self.controller.stop()
 
         self.worker.is_working = False
+        self.termal_worker.is_working = False
 
     cur_ang = 0
     wave_indx = 0
@@ -435,7 +423,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.wave_indx += 1
             self.angles_indx += 1
 
-            if round(self.cur_ang, 2) < round(float(self.stop_line_edit.text()), 2):
+            if round(float(self.cur_ang), 2) < round(float(self.stop_line_edit.text()), 2):
                 self.stop_plot = 0
                 self.worker.is_working = False
 
@@ -443,12 +431,11 @@ class MainWindow(QtWidgets.QMainWindow):
     termal_enable_status = 0
 
     def termal_on_button_clicked(self):
-        # self.termal_timer.start()
+        # self.termal_work_requested.emit(10)
         self.termal_send_command("enable")
         self.termal_enable_status = 1
 
     def termal_off_button_clicked(self):
-        # self.termal_timer.stop()
         self.termal_send_command("disable")
         self.termal_enable_status = 0
 
@@ -465,20 +452,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.ser.open()
 
             if self.ser.isOpen():
-
                 try:
                     self.ser.flushInput()  # flush input buffer, discarding all its contents
                     self.ser.flushOutput()  # flush output buffer, aborting current output
-
                     command += '\r'
                     self.ser.write(command.encode('ascii'))
-
                     time.sleep(0.5)
-
-                    # time.sleep(0.5)
-
-                    print("start reading")
-                    print("my command = " + command)
                     while True:
                         response = self.ser.readline().decode('utf-8', errors='ignore')
                         print("----read data: " + response)
@@ -495,10 +474,8 @@ class MainWindow(QtWidgets.QMainWindow):
                             break
 
                     self.ser.close()
-
                 except Exception as e:
                     print("error communicating...: " + str(e))
-
             else:
                 print("cannot open serial port ")
 
