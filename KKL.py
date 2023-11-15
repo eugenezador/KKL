@@ -45,7 +45,6 @@ class Worker(QObject):
         self.completed.emit(counter)
 
 
-
 class MainWindow(QtWidgets.QMainWindow):
 
     work_requested = Signal(int)
@@ -58,6 +57,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.is_Vega_exist:
             self.vega.close()
 
+        self.worker.is_working = False
         self.termal_worker.is_working = False
 
     def closeEvent(self, event):
@@ -77,7 +77,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Xeryon_cbox = QCheckBox("Двигатель")
         self.Termal_cbox = QCheckBox("Охлаждение лазера")
         self.Rigol_cbox = QCheckBox("Осцилограф")
-
 
         device_list_layout = QHBoxLayout()
         device_list_layout.addWidget(self.Xeryon_cbox)
@@ -113,7 +112,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.init_Rigol()
         self.ser = self.init_termal("/dev/ttyUSB0")
 
-
         ################  WORKER  #################
 
         self.worker = Worker()
@@ -136,10 +134,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal_worker_thread = QThread()
 
         self.termal_worker.progress.connect(self.update_termal_status)
+        self.termal_worker.completed.connect(self.complete)
 
         self.termal_work_requested.connect(self.termal_worker.do_work)
-
-        self.termal_worker.completed.connect(self.complete)
 
         # move worker to the worker thread
         self.termal_worker.moveToThread(self.termal_worker_thread)
@@ -225,10 +222,8 @@ class MainWindow(QtWidgets.QMainWindow):
     is_Rigol_exist = False
     is_Vega_exist = False
 
-
-    def complete(self, v):
+    def complete(self, counter):
         self.start_button.setEnabled(True)
-
 
     def init_Xeryon(self, device_name):
         if Path(device_name).exists():
@@ -266,7 +261,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ser.timeout = 2  # timeout block read
             ser.writeTimeout = 0  # timeout for writereturn ser
             self.is_termal_exist = True
-            
+
             return ser
 
 
@@ -274,9 +269,10 @@ class MainWindow(QtWidgets.QMainWindow):
     x_value = []
     y_value = []
 
-    def intergal_per_area(self):
-        # self.osc[2].get_data('norm', 'channel%i.dat' % 2)
-        self.get_data_for_integral("channel2.dat")
+    def intergal_per_area(self, channel_number):
+        self.osc[channel_number].get_data('norm', 'channel%i.dat' % 2)
+        channel_filename = 'channel' + channel_number + '.dat'
+        self.get_data_for_integral(channel_filename)
 
         summ = 0
         for indx in range(len(self.x_value) - 1):
@@ -344,18 +340,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.label_cur_vcc.setText(
                     "Мощность: " + str(round((float(self.vega.get_power()) * float(1000)), 2)) + " мВт")
 
-    # def binary_search(self, arr, low, high, x):
-    #     if high >= low:
-    #         mid = (high + low) // 2
-    #         if round(float(arr[mid]), 2) == round(x, 2):
-    #             return mid
-    #         elif round(float(arr[mid]), 2) > round(x, 2):
-    #             return self.binary_search(arr, low, mid - 1, x)
-    #         else:
-    #             return self.binary_search(arr, mid + 1, high, x)
-    #     else:
-    #         return -1
-
     def start_button_clicked(self):
         if self.is_xeryon_exist:
             if re.findall("\d+\.\d+", str(self.start_line_edit.text())) == "" or re.findall("\d+\.\d+", str(self.stop_line_edit.text())) == "":
@@ -372,13 +356,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 self.axisX.setDPOS(float(self.cur_ang))
 
-                # self.timer.start()
                 self.wave_indx = 0
                 self.x.clear()
                 self.y.clear()
-                self.stop_plot = 1
+                self.stop_plot = True
                 print(self.stop_plot)
                 self.stop_do_it = 0
+                self.worker_thread.start()
                 self.work_requested.emit(2)
                 self.worker.is_working = True
 
@@ -398,12 +382,12 @@ class MainWindow(QtWidgets.QMainWindow):
     wave_numbers = []
     x = []
     y = []
-    stop_plot = 0
+    stop_plot = False
 
     i = 0
 
-    def update_plot(self):
-        if self.stop_plot != 0:
+    def update_plot(self, counter):
+        if not self.stop_plot:
             # print("cur_ang ", self.cur_ang)
             self.axisX.setDPOS(self.angles[self.angles_indx])
             #
@@ -412,7 +396,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.x.append(float(self.wave_numbers[self.wave_indx]))
 
             if (self.device_choice.currentText() == "RIGOL Oscilloscope") and self.is_Rigol_exist:
-                # self.intergal_per_area()
+                # self.intergal_per_area(1)
+                # time.sleep(0.250)
+                # self.intergal_per_area(2)
                 self.y.append(float(self.osc[2].get_vpp()) * float(1000))
             elif self.is_Vega_exist:
                 time.sleep(3)
@@ -424,13 +410,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.angles_indx += 1
 
             if round(float(self.cur_ang), 2) < round(float(self.stop_line_edit.text()), 2):
-                self.stop_plot = 0
+                self.stop_plot = False
                 self.worker.is_working = False
 
 # ---------Termal-------------
     termal_enable_status = 0
 
     def termal_on_button_clicked(self):
+        # self.termal_worker_thread.start()
         # self.termal_work_requested.emit(10)
         self.termal_send_command("enable")
         self.termal_enable_status = 1
@@ -439,7 +426,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal_send_command("disable")
         self.termal_enable_status = 0
 
-    def update_termal_status(self):
+    def update_termal_status(self, counter):
         self.termal_send_command("gist")
         # self.termal_send_command("ps")
 
@@ -467,12 +454,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
                         if command == 'gist':
                             current_temp = re.findall("\d+\.\d+", response)
+                            print("0cur temp = ")
+                            print(current_temp)
                             break
 
                         if response == '01':
                             str_temp = "01 ERROR"
                             break
-
+                    print("1cur temp = ")
+                    print(current_temp)
                     self.ser.close()
                 except Exception as e:
                     print("error communicating...: " + str(e))
