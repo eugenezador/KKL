@@ -34,6 +34,7 @@ class Worker(QObject):
 
 class MainWindow(QMainWindow):
     work_requested = Signal(int)
+    temp_requested = Signal(int)
 
     i = 11
     x_value = []
@@ -86,6 +87,23 @@ class MainWindow(QMainWindow):
         # start the thread
         self.worker_thread.start()
 
+        self.temperature = Worker()
+
+        self.temp_thread = QThread()
+
+        self.temperature.progress.connect(self.temp_upd)
+
+        self.temperature.completed.connect(self.temp_ok)
+
+        self.temp_requested.connect(self.temperature.do_work)
+
+        # move worker to the worker thread
+        self.temperature.moveToThread(self.temp_thread)
+
+        # start the thread
+        self.temp_thread.start()y
+        self.temp_requested.emit(1)
+
         # show the window
         self.show()
 
@@ -104,6 +122,12 @@ class MainWindow(QMainWindow):
         print(self.i)
 
         self.graphWidget.plot(self.x_value, self.y_value)
+
+    def temp_upd(self, counter):
+        print("temp update")
+
+    def temp_ok(self, counter):
+        print("temp ok")
 
     def complete(self, v):
         self.progress_bar.setValue(v)
