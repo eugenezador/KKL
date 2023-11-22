@@ -282,15 +282,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.move_integral_data(self.ch1_y)
         self.move_integral_data(self.ch2_y)
 
-        ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
-        ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
-
+        
         result = 0
-        if float(ch2_sum) != 0 and self.calc_error:
-            result = float(ch1_sum) / float(ch2_sum)
+        if self.calc_error:
+            print("error")
         else:
-            print("<< devision by zero >>")
-            self.calc_error = True
+            ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
+            ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
+            if float(ch2_sum) != 0:
+                result = float(ch1_sum) / float(ch2_sum)
+            else:
+                print("<< devision by zero >>")
+                self.calc_error = True
 
         return result
 
@@ -441,14 +444,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 print(self.angles[self.angles_indx])
                 print(self.intergal_per_area())
                 res = 0
+                avarage_counter = 0
                 for i in range(0,10):
                     integral = float(self.intergal_per_area())
                     print(integral)
                     time.sleep(0.2)
-                    if integral > 0.2:
-                        res += float(self.intergal_per_area())
+                    avarage_counter += 1
+                    if integral > 0.5:
+                        res += float(integral)
 
-                res = res / 10
+                res = float(res) / avarage_counter
                 print("res:")
                 print(res)
 

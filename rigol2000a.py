@@ -158,7 +158,8 @@ class _Rigol2072aChannel:
         pre = self._osc._ask(':wav:pre?').split(',')
         pre_dict = {
             # eugene: zdes poyvilsia error
-            'format': int(pre[0]),
+            # 'format': int(pre[0]),
+            'format': float(pre[0]) if pre[0] != '' else 0,
             'type': int(pre[1]),
             'points': int(pre[2]),
             'count': int(pre[3]),
