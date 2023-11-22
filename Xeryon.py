@@ -442,8 +442,9 @@ class Axis:
                 
                 time.sleep(0.01)
 
-        if outputToConsole and error is False and DISABLE_WAITING is False:  # Output new DPOS & EPOS if necessary
-            outputConsole(getDposEposString(value, self.getEPOS(), unit))
+        ## eugene
+        # if outputToConsole and error is False and DISABLE_WAITING is False:  # Output new DPOS & EPOS if necessary
+        #     outputConsole(getDposEposString(value, self.getEPOS(), unit))
 
 
 

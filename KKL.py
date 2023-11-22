@@ -30,7 +30,6 @@ from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slo
 
 class Worker(QObject):
     progress = Signal(int)
-    completed = Signal(int)
     is_working = False
 
     @Slot(int)
@@ -38,12 +37,12 @@ class Worker(QObject):
         self.is_working = True
         while self.is_working:
             time.sleep(counter)
-            print("in do work\n")
-            print(self.is_working)
+            # print("in do work")
+            # print(self.is_working)
+            # print("\n")
             self.progress.emit(counter)
 
         print("loop finished")
-        self.completed.emit(counter)
 
 
 
@@ -59,8 +58,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.is_Vega_exist:
             self.vega.close()
 
-        self.termal_worker.is_working = False
-
     def closeEvent(self, event):
         ret = QtWidgets.QMessageBox.warning(None, 'Внимание!', 'Лазер Выключен?',
                                             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
@@ -71,6 +68,11 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             QtWidgets.QMainWindow.closeEvent(self, event)
             # event.ignore()
+
+        self.termal_worker.is_working = False
+        self.worker.is_working = False
+        self.worker_thread.wait(5000)
+        self.termal_worker_thread.wait(5000)
 
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
@@ -124,13 +126,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.work_requested.connect(self.worker.do_work)
 
-        self.worker.completed.connect(self.complete)
-
         # move worker to the worker thread
         self.worker.moveToThread(self.worker_thread)
 
         # start the thread
-        self.worker_thread.start()
+        # self.worker_thread.start()
         #################################
 
         ########### TERMAL WORKER ############
@@ -141,7 +141,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.termal_work_requested.connect(self.termal_worker.do_work)
 
-        self.termal_worker.completed.connect(self.complete)
 
         # move worker to the worker thread
         self.termal_worker.moveToThread(self.termal_worker_thread)
@@ -151,7 +150,6 @@ class MainWindow(QtWidgets.QMainWindow):
         #######################################
 
         self.start_button = QPushButton("СТАРТ", clicked=self.start_button_clicked)
-        # start_button.clicked.connect(self.start_button_clicked)
 
         self.stop_button = QPushButton("СТОП",  clicked=self.stop_button_clicked)
 
@@ -165,7 +163,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # START
         start_layout = QHBoxLayout()
         self.start_label = QLabel("Начальный угол: ")
-        self.start_line_edit = QLineEdit("111.5")
+        self.start_line_edit = QLineEdit("111.55")
         termal_on_button = QPushButton("ВКЛ. ОХЛАЖДЕНИЕ")
         termal_on_button.clicked.connect(self.termal_on_button_clicked)
         start_layout.addWidget(self.start_label)
@@ -177,6 +175,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # STOP
         stop_layout = QHBoxLayout()
         self.stop_label = QLabel("Конечный угол: ")
+        # self.stop_line_edit = QLineEdit("110")
         self.stop_line_edit = QLineEdit("93.75")
         termal_off_button = QPushButton("ВЫКЛ. ОХЛАЖДЕНИЕ")
         termal_off_button.clicked.connect(self.termal_off_button_clicked)
@@ -220,12 +219,6 @@ class MainWindow(QtWidgets.QMainWindow):
     is_Rigol_exist = False
     is_Vega_exist = False
 
-
-    def complete(self, counter):
-        print("in complete")
-        self.start_button.setEnabled(True)
-
-
     def init_Xeryon(self, device_name):
         if Path(device_name).exists():
             self.controller = Xeryon(device_name, 115200)
@@ -248,7 +241,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.osc = rigol2000a.Rigol2072a()
             # Change voltage range of channel 1 to 50mV/div.
             self.osc[1].set_vertical_scale_V(0.05)
-            self.osc[2].set_vertical_scale_V(0.015)
+            self.osc[2].set_vertical_scale_V(0.05)
             
 
     def init_termal(self, device_name):
@@ -269,44 +262,83 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 ################### --Integral-- #######################
-    x_value = []
-    y_value = []
+    calc_error = False
+    ch1_x = []
+    ch1_y = []
+    ch2_x = []
+    ch2_y = []
+    norm_x_data = []
+    norm_y_data = []
 
-    def intergal_per_area(self, chan_num):
-        self.x_value.clear()
-        self.y_value.clear()
-        filename = "channel" + str(chan_num) + ".dat"
-        self.get_data_for_integral(filename, chan_num)
+    def intergal_per_area(self):
+        self.osc[1].get_data('norm', 'channel%i.dat' % 1)
+        self.osc[2].get_data('norm', 'channel%i.dat' % 2)
 
+        filename = "channel" + "1" + ".dat"
+        self.get_data_for_integral(filename, 1, self.ch1_x, self.ch1_y)
+        filename = "channel" + "2" + ".dat"
+        self.get_data_for_integral(filename, 2, self.ch2_x, self.ch2_y)
+        
+        self.move_integral_data(self.ch1_y)
+        self.move_integral_data(self.ch2_y)
+
+        ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
+        ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
+
+        result = 0
+        if float(ch2_sum) != 0 and self.calc_error:
+            result = float(ch1_sum) / float(ch2_sum)
+        else:
+            print("<< devision by zero >>")
+            self.calc_error = True
+
+        return result
+
+
+    def move_integral_data(self, y_array):
+        if y_array:
+            max_value = max(y_array)
+            for i in range(len(y_array) - 1):
+                y_array[i] = y_array[i] - max_value
+                y_array[i] *= -1
+        else:
+            print("<< recive empty data from channel >>")
+            self.calc_error = True
+
+
+    def calculate_trapezoidal_sum(self, x_array, y_array):
         summ = 0
-        for indx in range(len(self.x_value) - 1):
+        for indx in range(len(x_array) - 1):
 
-            step = (abs(self.y_value[indx]) + abs(self.y_value[indx + 1])) /2
+            half = (abs(y_array[indx]) + abs(y_array[indx + 1])) /2
 
-            half = (self.x_value[indx + 1] -
-                    self.x_value[indx])
+            step = (x_array[indx + 1] -
+                    x_array[indx])
             
             summ += half * step
 
-        self.graphWidget.plot(self.x_value, self.y_value)
-
         return summ
 
-    def get_data_for_integral(self, filemane, chan_num):
+
+    def get_data_for_integral(self, filemane, chan_num, x_array, y_array):
+        x_array.clear()
+        y_array.clear()
+
         file1 = open(filemane, 'r')
         Lines = file1.readlines()
         
         for line in Lines:
             x = float(''.join(re.findall("^(.+?),", line))) # value before comma exept comma
             y = float(''.join(re.findall("[^,]*,(.*)", line))) # value after comma except comma
+            
             if chan_num == 1:
                 if float(x) > float(3.2e-07) and float(x) < float(1.14e-06) and float(y) < float(0.05):
-                    self.x_value.append(float(x))
-                    self.y_value.append(float(y))
+                    x_array.append(float(x))
+                    y_array.append(float(y))
             elif chan_num == 2:
                 if float(x) > float(1.02e-06) and float(x) < float(1.87e-06) and float(y) < float(0.05):
-                    self.x_value.append(float(x))
-                    self.y_value.append(float(y))
+                    x_array.append(float(x))
+                    y_array.append(float(y))
 
 ##############################
 
@@ -324,7 +356,6 @@ class MainWindow(QtWidgets.QMainWindow):
     dpos = 0
     step = 0.05
     value = []
-    stop_do_it = 0
 
     def save_data_to_file(self):
         file = open("user_data.txt", "w+")
@@ -335,20 +366,12 @@ class MainWindow(QtWidgets.QMainWindow):
         file.close()
 
     def set_ang_button_clicked(self):
-        # print(self.intergal_per_area(1))
-        # print(self.intergal_per_area(2))
         if self.is_xeryon_exist:
             self.axisX.setDPOS(self.set_ang_line_edit.text())
             if (self.device_choice.currentText() == "RIGOL Oscilloscope"):
-                for c in range(1,3):
-                    self.osc[c].get_data('norm', 'channel%i.dat' % c)
-
-                print(self.intergal_per_area(1))
-                print(self.intergal_per_area(2))
-
 
                 self.label_cur_vcc.setText(
-                    "Интенсивность: " + str(round((float(self.osc[2].get_vpp()) * float(1000)), 2)) + " у:е")
+                    "Интенсивность: " + str(self.intergal_per_area()) + " у:е")
             else:
                 time.sleep(3)
                 self.label_cur_vcc.setText(
@@ -363,33 +386,30 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.cur_ang = round(float(self.start_line_edit.text()), 2)
                 self.angles_indx = 0
+                self.wave_indx = 0
                 while round(float(self.cur_ang), 2) != round(float(self.angles[self.angles_indx]), 2):
                     if round(float(self.cur_ang), 2) > round(float(self.angles[self.angles_indx]), 2):
                         self.cur_ang -= 0.05
                     elif self.angles_indx < len(self.angles):
                         self.angles_indx += 1
+                        self.wave_indx += 1
 
-                self.axisX.setDPOS(float(self.cur_ang))
+                # self.axisX.setDPOS(float(self.cur_ang))
 
-                self.wave_indx = 0
                 self.x.clear()
                 self.y.clear()
                 self.stop_plot = 1
-                self.stop_do_it = 0
                 self.worker_thread.start()
-                self.work_requested.emit(1)
-                # self.worker.is_working = True
+                self.work_requested.emit(4)
                 self.start_button.setEnabled(False)
 
     def stop_button_clicked(self):
         self.start_button.setEnabled(True)
-        # self.intergal_per_area()
-        if self.is_xeryon_exist:
-            self.axisX.reset()
-            self.controller.stop()
         
         self.worker.is_working = False
-        self.termal_worker.is_working = False
+        # self.worker_thread.terminate()
+        self.worker_thread.wait(5000)
+
 
     cur_ang = 0
     wave_indx = 0
@@ -400,40 +420,60 @@ class MainWindow(QtWidgets.QMainWindow):
     y = []
     stop_plot = 0
 
-    i = 0
-
-    def update_plot(self):
+    def update_plot(self, counter):
         if self.stop_plot != 0:
-            # print("cur_ang ", self.cur_ang)
+            if round(float(self.angles[self.angles_indx]), 2) < round(float(self.stop_line_edit.text()), 2):
+                print("in stop")
+                self.stop_plot = 0
+                self.start_button.setEnabled(True)
+                self.worker.is_working = False
+                # self.worker_thread.terminate()
+                self.worker_thread.wait(5000)
+
+
             self.axisX.setDPOS(self.angles[self.angles_indx])
             #
-            time.sleep(0.1)
+            time.sleep(0.5)
             #   Rigol or Vega
             self.x.append(float(self.wave_numbers[self.wave_indx]))
 
             if (self.device_choice.currentText() == "RIGOL Oscilloscope") and self.is_Rigol_exist:
-                # self.intergal_per_area()
-                self.y.append(float(self.osc[2].get_vpp()) * float(1000))
+                print(self.angles[self.angles_indx])
+                print(self.intergal_per_area())
+                res = 0
+                for i in range(0,10):
+                    integral = float(self.intergal_per_area())
+                    print(integral)
+                    time.sleep(0.2)
+                    if integral > 0.2:
+                        res += float(self.intergal_per_area())
+
+                res = res / 10
+                print("res:")
+                print(res)
+
+                self.y.append(float(res) * float(1000))
             elif self.is_Vega_exist:
                 time.sleep(3)
                 self.y.append(float(self.vega.get_power()) * float(1000))
 
-            self.data_line.setData(self.x, self.y)
+            # print(self.wave_indx)
+            # print(self.angles_indx)
+
+            if not self.calc_error:
+                self.data_line.setData(self.x, self.y)
 
             self.wave_indx += 1
             self.angles_indx += 1
 
-            if round(float(self.cur_ang), 2) < round(float(self.stop_line_edit.text()), 2):
-                self.stop_plot = 0
-                self.worker.is_working = False
 
 # ---------Termal-------------
     termal_enable_status = 0
 
     def termal_on_button_clicked(self):
         self.termal_work_requested.emit(10)
-        self.termal_send_command("enable")
         self.termal_enable_status = 1
+        self.termal_send_command("enable")
 
     def termal_off_button_clicked(self):
         self.termal_send_command("disable")

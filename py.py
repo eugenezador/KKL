@@ -101,7 +101,7 @@ class MainWindow(QMainWindow):
         self.temperature.moveToThread(self.temp_thread)
 
         # start the thread
-        self.temp_thread.start()y
+        self.temp_thread.start()
         self.temp_requested.emit(1)
 
         # show the window
