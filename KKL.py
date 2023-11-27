@@ -37,12 +37,8 @@ class Worker(QObject):
         self.is_working = True
         while self.is_working:
             time.sleep(counter)
-            # print("in do work")
-            # print(self.is_working)
-            # print("\n")
             self.progress.emit(counter)
 
-        print("loop finished")
 
 
 
@@ -163,7 +159,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # START
         start_layout = QHBoxLayout()
         self.start_label = QLabel("Начальный угол: ")
-        self.start_line_edit = QLineEdit("111.55")
+        self.start_line_edit = QLineEdit("110")
         termal_on_button = QPushButton("ВКЛ. ОХЛАЖДЕНИЕ")
         termal_on_button.clicked.connect(self.termal_on_button_clicked)
         start_layout.addWidget(self.start_label)
@@ -271,7 +267,10 @@ class MainWindow(QtWidgets.QMainWindow):
     norm_y_data = []
 
     def intergal_per_area(self):
+        self.calc_error = False
+        time.sleep(0.250)
         self.osc[1].get_data('norm', 'channel%i.dat' % 1)
+        time.sleep(0.250)
         self.osc[2].get_data('norm', 'channel%i.dat' % 2)
 
         filename = "channel" + "1" + ".dat"
@@ -436,7 +435,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.axisX.setDPOS(self.angles[self.angles_indx])
             #
-            time.sleep(0.5)
             #   Rigol or Vega
             self.x.append(float(self.wave_numbers[self.wave_indx]))
 
@@ -448,7 +446,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 for i in range(0,10):
                     integral = float(self.intergal_per_area())
                     print(integral)
-                    time.sleep(0.2)
                     avarage_counter += 1
                     if integral > 0.5:
                         res += float(integral)

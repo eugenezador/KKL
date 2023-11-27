@@ -155,11 +155,18 @@ class _Rigol2072aChannel:
         self._write(':unit %s' % unit)
 
     def get_data_premable(self):
+        
         pre = self._osc._ask(':wav:pre?').split(',')
+        time.sleep(0.250)
+        print("pre:")
+        print(pre)
+        if pre[0] == '':
+            print("pre:")
+            print(pre)
+            pre[0] = 0
         pre_dict = {
             # eugene: zdes poyvilsia error
-            # 'format': int(pre[0]),
-            'format': float(pre[0]) if pre[0] != '' else 0,
+            'format': int(pre[0]),
             'type': int(pre[1]),
             'points': int(pre[2]),
             'count': int(pre[3]),
