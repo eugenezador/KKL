@@ -155,15 +155,12 @@ class _Rigol2072aChannel:
         self._write(':unit %s' % unit)
 
     def get_data_premable(self):
-        
         pre = self._osc._ask(':wav:pre?').split(',')
         time.sleep(0.250)
         print("pre:")
         print(pre)
-        if pre[0] == '':
-            print("pre:")
-            print(pre)
-            pre[0] = 0
+        while pre[0] == '':
+            pre = self._osc._ask(':wav:pre?').split(',')
         pre_dict = {
             # eugene: zdes poyvilsia error
             'format': int(pre[0]),
@@ -188,6 +185,7 @@ class _Rigol2072aChannel:
         
  #[:SOURce<n>]:VOLTage[:LEVel][:IMMediate][:AMPLitude]
 
+    
     def get_data(self, mode='norm', filename=None):
         assert mode in ('norm', 'raw')
 

@@ -1,4 +1,3 @@
-
 from Xeryon import *
 from pylablib.devices import Ophir
 import rigol2000a
@@ -28,6 +27,127 @@ from pathlib import Path
 from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slot
 
 
+class Rigol_Worker(QObject):
+    avarage_integral = Signal(float)
+    is_working = False
+    is_Rigol_exist = False
+
+    def __init__(self):
+        if glob('/dev/usbtmc*'):
+            self.is_Rigol_exist = True
+            self.osc = rigol2000a.Rigol2072a()
+            # Change voltage range of channel 1 to 50mV/div.
+            self.osc[1].set_vertical_scale_V(0.05)
+            self.osc[2].set_vertical_scale_V(0.05)
+
+    ################### --Integral-- #######################
+    calc_error = False
+    ch1_x = []
+    ch1_y = []
+    ch2_x = []
+    ch2_y = []
+    norm_x_data = []
+    norm_y_data = []
+
+    def intergal_per_area(self):
+        self.calc_error = False
+        time.sleep(0.250)
+        self.osc[1].get_data('norm', 'channel%i.dat' % 1)
+        time.sleep(0.250)
+        self.osc[2].get_data('norm', 'channel%i.dat' % 2)
+
+        filename = "channel" + "1" + ".dat"
+        self.get_data_for_integral(filename, 1, self.ch1_x, self.ch1_y)
+        filename = "channel" + "2" + ".dat"
+        self.get_data_for_integral(filename, 2, self.ch2_x, self.ch2_y)
+        
+        self.move_integral_data(self.ch1_y)
+        self.move_integral_data(self.ch2_y)
+
+        
+        result = 0
+        if self.calc_error:
+            print("error")
+        else:
+            ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
+            ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
+            if float(ch2_sum) != 0:
+                result = float(ch1_sum) / float(ch2_sum)
+            else:
+                print("<< devision by zero >>")
+                self.calc_error = True
+
+        return result
+
+
+    def move_integral_data(self, y_array):
+        if y_array:
+            max_value = max(y_array)
+            for i in range(len(y_array) - 1):
+                y_array[i] = y_array[i] - max_value
+                y_array[i] *= -1
+        else:
+            print("<< recive empty data from channel >>")
+            self.calc_error = True
+
+
+    def calculate_trapezoidal_sum(self, x_array, y_array):
+        summ = 0
+        for indx in range(len(x_array) - 1):
+
+            half = (abs(y_array[indx]) + abs(y_array[indx + 1])) /2
+
+            step = (x_array[indx + 1] -
+                    x_array[indx])
+            
+            summ += half * step
+
+        return summ
+
+
+    def get_data_for_integral(self, filemane, chan_num, x_array, y_array):
+        x_array.clear()
+        y_array.clear()
+
+        file1 = open(filemane, 'r')
+        Lines = file1.readlines()
+        
+        for line in Lines:
+            x = float(''.join(re.findall("^(.+?),", line))) # value before comma exept comma
+            y = float(''.join(re.findall("[^,]*,(.*)", line))) # value after comma except comma
+            
+            if chan_num == 1:
+                if float(x) > float(3.2e-07) and float(x) < float(1.14e-06) and float(y) < float(0.05):
+                    x_array.append(float(x))
+                    y_array.append(float(y))
+            elif chan_num == 2:
+                if float(x) > float(1.02e-06) and float(x) < float(1.87e-06) and float(y) < float(0.05):
+                    x_array.append(float(x))
+                    y_array.append(float(y))
+
+##############################
+    cur_ang = 0
+    angles = []
+
+    def avarage_integral(self, angle_value):
+        res = 0
+        avarage_counter = 0
+        for i in range(0,10):
+            integral = float(self.intergal_per_area())
+            print(integral)
+            avarage_counter += 1
+            if integral > 0.5:
+                res += float(integral)
+
+            res = float(res) / avarage_counter
+            print("res:")
+            print(res)
+            self.avarage_integral.emit(res)
+
+
+
+
+
 class Worker(QObject):
     progress = Signal(int)
     is_working = False
@@ -44,7 +164,9 @@ class Worker(QObject):
 
 class MainWindow(QtWidgets.QMainWindow):
 
-    work_requested = Signal(int)
+    # work_requested = Signal(float)
+    get_integral_value = Signal(float)
+
     termal_work_requested = Signal(int)
 
     def __del__(self):
@@ -66,8 +188,8 @@ class MainWindow(QtWidgets.QMainWindow):
             # event.ignore()
 
         self.termal_worker.is_working = False
-        self.worker.is_working = False
-        self.worker_thread.wait(5000)
+        self.rigol.is_working = False
+        self.rigol_thread.wait(5000)
         self.termal_worker_thread.wait(5000)
 
     def __init__(self, *args, **kwargs):
@@ -107,26 +229,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.angles = self.from_file_to_list("angles.txt")
         self.wave_numbers = self.from_file_to_list("wave_numbers.txt")
 
-        self.init_Xeryon("/dev/ttyACM0")
-        self.init_Vega("/dev/ttyUSB1")
-        self.init_Rigol()
-        self.ser = self.init_termal("/dev/ttyUSB0")
 
 
-        ################  WORKER  #################
+        ################  RIGOL WORKER  #################
+        self.rigol = Rigol_Worker()
+        self.rigol_thread = QThread()
 
-        self.worker = Worker()
-        self.worker_thread = QThread()
+        self.get_integral_value.connect(self.rigol.avarage_integral)
 
-        self.worker.progress.connect(self.update_plot)
 
-        self.work_requested.connect(self.worker.do_work)
+        self.work_requested.connect(self.rigol.do_work)
 
         # move worker to the worker thread
-        self.worker.moveToThread(self.worker_thread)
-
-        # start the thread
-        # self.worker_thread.start()
+        self.rigol.moveToThread(self.rigol_thread_thread)
         #################################
 
         ########### TERMAL WORKER ############
@@ -144,6 +259,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # start the thread
         self.termal_worker_thread.start()
         #######################################
+        ############## INIT DEVICES ################
+        self.init_Xeryon("/dev/ttyACM0")
+        self.init_Vega("/dev/ttyUSB1")
+        self.init_Rigol()
+        self.ser = self.init_termal("/dev/ttyUSB0")
+        #################################################33
 
         self.start_button = QPushButton("СТАРТ", clicked=self.start_button_clicked)
 
@@ -232,12 +353,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def init_Rigol(self):
         if glob('/dev/usbtmc*'):
-            self.is_Rigol_exist = True
+            self.rigol.is_Rigol_exist = True
             self.Rigol_cbox.setChecked(True)
-            self.osc = rigol2000a.Rigol2072a()
-            # Change voltage range of channel 1 to 50mV/div.
-            self.osc[1].set_vertical_scale_V(0.05)
-            self.osc[2].set_vertical_scale_V(0.05)
             
 
     def init_termal(self, device_name):
@@ -256,93 +373,6 @@ class MainWindow(QtWidgets.QMainWindow):
             
             return ser
 
-
-################### --Integral-- #######################
-    calc_error = False
-    ch1_x = []
-    ch1_y = []
-    ch2_x = []
-    ch2_y = []
-    norm_x_data = []
-    norm_y_data = []
-
-    def intergal_per_area(self):
-        self.calc_error = False
-        time.sleep(0.250)
-        self.osc[1].get_data('norm', 'channel%i.dat' % 1)
-        time.sleep(0.250)
-        self.osc[2].get_data('norm', 'channel%i.dat' % 2)
-
-        filename = "channel" + "1" + ".dat"
-        self.get_data_for_integral(filename, 1, self.ch1_x, self.ch1_y)
-        filename = "channel" + "2" + ".dat"
-        self.get_data_for_integral(filename, 2, self.ch2_x, self.ch2_y)
-        
-        self.move_integral_data(self.ch1_y)
-        self.move_integral_data(self.ch2_y)
-
-        
-        result = 0
-        if self.calc_error:
-            print("error")
-        else:
-            ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
-            ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
-            if float(ch2_sum) != 0:
-                result = float(ch1_sum) / float(ch2_sum)
-            else:
-                print("<< devision by zero >>")
-                self.calc_error = True
-
-        return result
-
-
-    def move_integral_data(self, y_array):
-        if y_array:
-            max_value = max(y_array)
-            for i in range(len(y_array) - 1):
-                y_array[i] = y_array[i] - max_value
-                y_array[i] *= -1
-        else:
-            print("<< recive empty data from channel >>")
-            self.calc_error = True
-
-
-    def calculate_trapezoidal_sum(self, x_array, y_array):
-        summ = 0
-        for indx in range(len(x_array) - 1):
-
-            half = (abs(y_array[indx]) + abs(y_array[indx + 1])) /2
-
-            step = (x_array[indx + 1] -
-                    x_array[indx])
-            
-            summ += half * step
-
-        return summ
-
-
-    def get_data_for_integral(self, filemane, chan_num, x_array, y_array):
-        x_array.clear()
-        y_array.clear()
-
-        file1 = open(filemane, 'r')
-        Lines = file1.readlines()
-        
-        for line in Lines:
-            x = float(''.join(re.findall("^(.+?),", line))) # value before comma exept comma
-            y = float(''.join(re.findall("[^,]*,(.*)", line))) # value after comma except comma
-            
-            if chan_num == 1:
-                if float(x) > float(3.2e-07) and float(x) < float(1.14e-06) and float(y) < float(0.05):
-                    x_array.append(float(x))
-                    y_array.append(float(y))
-            elif chan_num == 2:
-                if float(x) > float(1.02e-06) and float(x) < float(1.87e-06) and float(y) < float(0.05):
-                    x_array.append(float(x))
-                    y_array.append(float(y))
-
-##############################
 
     def from_file_to_list(self, filemane):
         list = []
@@ -396,21 +426,18 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.angles_indx += 1
                         self.wave_indx += 1
 
-                # self.axisX.setDPOS(float(self.cur_ang))
-
                 self.x.clear()
                 self.y.clear()
                 self.stop_plot = 1
-                self.worker_thread.start()
-                self.work_requested.emit(4)
+                self.rigol_thread.start()
                 self.start_button.setEnabled(False)
 
     def stop_button_clicked(self):
         self.start_button.setEnabled(True)
         
-        self.worker.is_working = False
+        self.rigol.is_working = False
         # self.worker_thread.terminate()
-        self.worker_thread.wait(5000)
+        self.rigol_thread.wait(5000)
 
 
     cur_ang = 0
@@ -422,51 +449,33 @@ class MainWindow(QtWidgets.QMainWindow):
     y = []
     stop_plot = 0
 
-    def update_plot(self, counter):
+    
+    def move_motor(self, counter):
         if self.stop_plot != 0:
             if round(float(self.angles[self.angles_indx]), 2) < round(float(self.stop_line_edit.text()), 2):
                 print("in stop")
                 self.stop_plot = 0
                 self.start_button.setEnabled(True)
-                self.worker.is_working = False
-                # self.worker_thread.terminate()
-                self.worker_thread.wait(5000)
-
+                self.rigol.is_working = False
+                self.rigol_thread.wait(5000)
 
             self.axisX.setDPOS(self.angles[self.angles_indx])
-            #
-            #   Rigol or Vega
-            self.x.append(float(self.wave_numbers[self.wave_indx]))
 
-            if (self.device_choice.currentText() == "RIGOL Oscilloscope") and self.is_Rigol_exist:
+            if (self.device_choice.currentText() == "RIGOL Oscilloscope") and self.rigol.is_Rigol_exist:
                 print(self.angles[self.angles_indx])
-                print(self.intergal_per_area())
-                res = 0
-                avarage_counter = 0
-                for i in range(0,10):
-                    integral = float(self.intergal_per_area())
-                    print(integral)
-                    avarage_counter += 1
-                    if integral > 0.5:
-                        res += float(integral)
+                self.get_integral_value.emit(self.angles[self.angles_indx])
 
-                res = float(res) / avarage_counter
-                print("res:")
-                print(res)
 
-                self.y.append(float(res) * float(1000))
-            elif self.is_Vega_exist:
-                time.sleep(3)
-                self.y.append(float(self.vega.get_power()) * float(1000))
 
-            # print(self.wave_indx)
-            # print(self.angles_indx)
+    def update_plot(self, avarage_integral):
+        self.x.append(float(self.wave_numbers[self.wave_indx]))
+        self.y.append(float(avarage_integral) * float(1000))
 
-            if not self.calc_error:
-                self.data_line.setData(self.x, self.y)
+        self.data_line.setData(self.x, self.y)
 
-            self.wave_indx += 1
-            self.angles_indx += 1
+        self.wave_indx += 1
+        self.angles_indx += 1
+
 
 
 # ---------Termal-------------
