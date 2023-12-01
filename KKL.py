@@ -29,6 +29,9 @@ from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slo
 
 class Rigol_Worker(QObject):
     sent_avarage_integral_value = Signal(float, float)
+
+    sent_intergal_value = Signal(float)
+
     is_working = False
     is_Rigol_exist = False
     is_Xeryon_exist = False
@@ -191,7 +194,12 @@ class Rigol_Worker(QObject):
         print("res: " + str(res))
         return float(res)
 
-    def move_motor(self):
+    def move_motor(self, value):
+        if self.is_Rigol_exist:
+            self.axisX.setDPOS(value)
+            self.sent_intergal_value.emit(self.avarage_integral_calc())
+
+    def step_motor(self):
         if self.is_Rigol_exist:
             self.axisX.setDPOS(self.angles[self.angles_indx])
             print(self.angles[self.angles_indx])
@@ -203,19 +211,19 @@ class Rigol_Worker(QObject):
         self.is_working = True
         while self.is_working:
             time.sleep(0.1)
-            self.move_motor()
+            self.step_motor()
             self.sent_avarage_integral_value.emit(
                 self.avarage_integral_calc(), int(self.wave_numbers[self.wave_indx]))
 
 
 class Termal_Worker(QObject):
-    sent_temperature = Signal(float)
-
-    sent_termal_turn_on_off_status = Signal(bool)
+    sent_current_temperature_value = Signal(float)
 
     is_working = False
 
     is_Termal_exist = False
+
+    is_Termal_turn_On = False
 
     def __init__(self):
         super(Termal_Worker, self).__init__()
@@ -224,8 +232,6 @@ class Termal_Worker(QObject):
 
     def init_termal(self, device_name):
         if Path(device_name).exists():
-            self.Termal_cbox.setChecked(True)
-
             SERIALPORT = device_name
             BAUDRATE = 115200
             ser = serial.Serial(SERIALPORT, BAUDRATE)
@@ -244,11 +250,11 @@ class Termal_Worker(QObject):
     def termal_turn_off(self):
         self.termal_send_command("disable")
 
+    def update_termal_status(self):
+        self.termal_send_command("gist")
+
     def termal_send_command(self, command):
         if self.is_Termal_exist:
-            str_temp = ""
-            current_temp = ""
-
             if not self.ser.isOpen():
                 self.ser.open()
 
@@ -267,19 +273,18 @@ class Termal_Worker(QObject):
                             break
 
                         if command == "gist" + '\r':
-                            current_temp = re.findall("\d+\.\d+", response)
+                            self.sent_current_temperature_value.emit(
+                                round(float(re.findall("\d+\.\d+", response)), 2))
                             break
 
                         if command == "enable" + '\r' and response == '00':
                             self.is_Termal_turn_On = True
-                            self.sent_termal_turn_on_off_status.emit(True)
 
                         if command == "disable" + '\r' and response == '00':
                             self.is_Termal_turn_On = False
-                            self.sent_termal_turn_on_off_status.emit(False)
 
                         if response == '01':
-                            str_temp = "01 ERROR"
+                            print("01 ERROR !!!")
                             break
 
                     self.ser.close()
@@ -289,20 +294,26 @@ class Termal_Worker(QObject):
             else:
                 print("cannot open serial port ")
 
-    @Slot(int)
-    def do_work(self, counter):
+    @Slot()
+    def do_work(self):
         self.is_working = True
         while self.is_working:
-            time.sleep(counter)
-            self.progress.emit(counter)
+            time.sleep(10)
+            self.update_termal_status()
 
 
 class MainWindow(QtWidgets.QMainWindow):
+    move_Xeryon = Signal(str)
+
     start_rigol_xeryon_work = Signal()
 
     sent_start_xeryon_angle = Signal(float)
 
-    termal_work_requested = Signal(int)
+    termal_start_work = Signal()
+
+    turn_on_termal = Signal()
+    turn_off_termal = Signal()
+
     #########
     cur_ang = 0
     x = []
@@ -321,6 +332,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rigol = Rigol_Worker()
         self.rigol_thread = QThread()
 
+        self.move_Xeryon.connect(self.rigol.move_motor)
+
+        self.rigol.sent_avarage_integral_value.connect(
+            self.print_intergal_value)
+
         self.start_rigol_xeryon_work.connect(self.rigol.do_work)
 
         self.sent_start_xeryon_angle.connect(self.rigol.get_start_angle_value)
@@ -333,9 +349,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal = Termal_Worker()
         self.termal_thread = QThread()
 
-        self.termal.progress.connect(self.update_termal_status)
+        self.turn_on_termal.connect(self.termal.termal_turn_on)
 
-        self.termal_work_requested.connect(self.termal.do_work)
+        self.turn_off_termal.connect(self.termal.termal_turn_off)
+
+        self.termal.sent_current_temperature_value.connect(
+            self.print_current_temperature)
+
+        self.termal_start_work.connect(self.termal.do_work)
 
         # move worker to the worker thread
         self.termal.moveToThread(self.termal_thread)
@@ -362,14 +383,17 @@ class MainWindow(QtWidgets.QMainWindow):
             self.Termal_cbox.setChecked(True)
 
     def set_ang_button_clicked(self):
-        if self.rigol.is_Xeryon_exist:
-            print("in set angle")
+        self.move_Xeryon.emit(self.set_ang_line_edit.text())
+
+    def print_intergal_value(self, value):
+        self.label_integral_value.setText(
+            "Интенсивность: " + str(value) + " у:е")
 
     def start_button_clicked(self):
         if self.rigol.is_Xeryon_exist:
             if re.findall("\d+\.\d+", str(self.start_line_edit.text())) == "" or re.findall("\d+\.\d+", str(self.stop_line_edit.text())) == "":
                 self.label_status.setText("Введите число в фромате dddd.dddd")
-                time.sleep(0.5)
+                time.sleep(0.1)
             else:
                 self.x.clear()
                 self.y.clear()
@@ -393,34 +417,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self.data_line.setData(self.x, self.y)
 
 
-# ---------Termal-------------
-    termal_enable_status = 0
+###############  Termal ########
+
 
     def termal_on_button_clicked(self):
-        self.termal_work_requested.emit(10)
-        self.termal_enable_status = 1
-        self.termal_send_command("enable")
+        self.turn_on_termal.emit()
+        self.termal_start_work.emit()
 
     def termal_off_button_clicked(self):
-        self.termal_send_command("disable")
-        self.termal_enable_status = 0
+        self.turn_off_termal.emit()
 
-    def update_termal_status(self):
-        self.termal_send_command("gist")
-        # self.termal_send_command("ps")
+    def print_current_temperature(self, current_temp):
+        str_temp = "Температура лазера= " + \
+            ''.join(current_temp) + " С || " + \
+            "Установленная температура лазера = 18 C "
 
-    
+        if self.termal.is_Termal_turn_On:
+            str_temp += "|| Охлаждение Включено"
+        else:
+            str_temp += "|| Охлаждение Выключено"
 
-            if str_temp != "01 ERROR":
-                str_temp = "Температура лазера= " + \
-                    ''.join(current_temp) + " С || " + \
-                    "Установленная температура лазера = 18 C "
-                if self.termal_enable_status == 1:
-                    str_temp += "|| Охлаждение Включено"
-                else:
-                    str_temp += "|| Охлаждение Выключено"
-
-            self.label_status.setText(str_temp)
+        self.label_status.setText(str_temp)
+###########################
 
     def init_widgets(self):
         self.Xeryon_cbox = QCheckBox("Двигатель")
@@ -500,11 +518,11 @@ class MainWindow(QtWidgets.QMainWindow):
         save_to_file_button = QPushButton("Сохранить данные в файл")
         # save_to_file_button.clicked.connect(self.save_data_to_file)
         self.set_ang_line_edit = QLineEdit("101.1")
-        self.label_cur_vcc = QLabel("")
-        self.label_cur_vcc.setFrameStyle(QFrame.Panel | QFrame.Sunken)
+        self.label_integral_value = QLabel("")
+        self.label_integral_value.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         set_ang_layout.addWidget(set_ang_button)
         set_ang_layout.addWidget(self.set_ang_line_edit)
-        set_ang_layout.addWidget(self.label_cur_vcc)
+        set_ang_layout.addWidget(self.label_integral_value)
         set_ang_layout.addWidget(save_to_file_button)
 
         layout.addLayout(set_ang_layout)
