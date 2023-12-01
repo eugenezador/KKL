@@ -34,6 +34,7 @@ class Rigol_Worker(QObject):
     is_Xeryon_exist = False
 
     angles_indx = 0
+    wave_indx = 0
 
     def __del__(self):
         if self.is_Xeryon_exist:
@@ -75,6 +76,8 @@ class Rigol_Worker(QObject):
             elif self.angles_indx < len(self.angles):
                 self.angles_indx += 1
                 self.wave_indx += 1
+
+        self.axisX.setDPOS(float(self.curent_ang))
 
     def from_file_to_list(self, filemane):
         list = []
@@ -202,9 +205,89 @@ class Rigol_Worker(QObject):
                 self.avarage_integral_calc(self.angles_indx))
 
 
-class Worker(QObject):
-    progress = Signal(int)
+class Termal_Worker(QObject):
+    sent_temperature = Signal(float)
+
+    sent_termal_turn_on_off_status = Signal(bool)
+    
     is_working = False
+
+    is_Termal_exist = False
+
+
+    def __init__(self):
+        super(Termal_Worker, self).__init__()
+
+        self.ser = self.init_termal("/dev/ttyUSB0")
+
+    def init_termal(self, device_name):
+        if Path(device_name).exists():
+            self.Termal_cbox.setChecked(True)
+
+            SERIALPORT = device_name
+            BAUDRATE = 115200
+            ser = serial.Serial(SERIALPORT, BAUDRATE)
+            ser.bytesize = serial.EIGHTBITS
+            ser.parity = serial.PARITY_EVEN
+            ser.stopbits = serial.STOPBITS_ONE
+            ser.timeout = 2
+            ser.writeTimeout = 0
+            self.is_Termal_exist = True
+
+            return ser
+        
+    def termal_turn_on(self):
+        self.termal_send_command("enable")
+
+
+    def termal_turn_off(self):
+        self.termal_send_command("disable")
+
+    
+    def termal_send_command(self, command):
+        if self.is_Termal_exist:
+            str_temp = ""
+            current_temp = ""
+
+            if not self.ser.isOpen():
+                self.ser.open()
+
+            if self.ser.isOpen():
+                try:
+                    self.ser.flushInput()  # flush input buffer, discarding all its contents
+                    self.ser.flushOutput()  # flush output buffer, aborting current output
+                    command += '\r'
+                    self.ser.write(command.encode('ascii'))
+                    time.sleep(0.5)
+                    while True:
+                        response = self.ser.readline().decode('utf-8', errors='ignore')
+                        print("----read data: " + response)
+                        if response == '':
+                            print("finish reading")
+                            break
+
+                        if command == "gist" + '\r':
+                            current_temp = re.findall("\d+\.\d+", response)
+                            break
+
+                        if command == "enable" + '\r' and response == '00':
+                            self.is_Termal_turn_On = True
+                            self.sent_termal_turn_on_off_status.emit(True)
+
+                        if command == "disable" + '\r' and response == '00':
+                            self.is_Termal_turn_On = False
+                            self.sent_termal_turn_on_off_status.emit(False)
+
+                        if response == '01':
+                            str_temp = "01 ERROR"
+                            break
+
+                    self.ser.close()
+
+                except Exception as e:
+                    print("error communicating...: " + str(e))
+            else:
+                print("cannot open serial port ")
 
     @Slot(int)
     def do_work(self, counter):
@@ -221,8 +304,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     termal_work_requested = Signal(int)
     #########
-    is_termal_exist = False
-    ##########
     cur_ang = 0
     x = []
     y = []
@@ -242,29 +323,29 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.start_rigol_xeryon_work.connect(self.rigol.do_work)
 
-        self.rigol.sent_avarage_integral_value.connect(self.update_plot)
-
         self.sent_start_xeryon_angle.connect(self.rigol.get_start_angle_value)
+
+        self.rigol.sent_avarage_integral_value.connect(self.update_plot)
 
         self.rigol.moveToThread(self.rigol_thread)
 
         ########### TERMAL WORKER ############
-        self.termal_worker = Worker()
-        self.termal_worker_thread = QThread()
+        self.termal = Termal_Worker()
+        self.termal_thread = QThread()
 
-        self.termal_worker.progress.connect(self.update_termal_status)
+        self.termal.progress.connect(self.update_termal_status)
 
-        self.termal_work_requested.connect(self.termal_worker.do_work)
+        self.termal_work_requested.connect(self.termal.do_work)
 
         # move worker to the worker thread
-        self.termal_worker.moveToThread(self.termal_worker_thread)
+        self.termal.moveToThread(self.termal_thread)
 
         # start the thread
         self.termal_worker_thread.start()
         ############## INIT DEVICES ################
         self.init_Xeryon("/dev/ttyACM0")
         self.init_Rigol()
-        self.ser = self.init_termal("/dev/ttyUSB0")
+        self.init_termal()
 
         self.termal_on_button_clicked()
 
@@ -273,33 +354,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.Xeryon_cbox.setChecked(True)
 
     def init_Rigol(self):
-        if glob('/dev/usbtmc*'):
-            self.rigol.is_Rigol_exist = True
+        if self.rigol.is_Rigol_exist:
             self.Rigol_cbox.setChecked(True)
 
-    def init_termal(self, device_name):
-        if Path(device_name).exists():
+    def init_termal(self):
+        if self.termal.is_Termal_exist:
             self.Termal_cbox.setChecked(True)
 
-            SERIALPORT = device_name
-            BAUDRATE = 115200
-            ser = serial.Serial(SERIALPORT, BAUDRATE)
-            ser.bytesize = serial.EIGHTBITS
-            ser.parity = serial.PARITY_EVEN
-            ser.stopbits = serial.STOPBITS_ONE
-            ser.timeout = 2
-            ser.writeTimeout = 0
-            self.is_termal_exist = True
-
-            return ser
-
-    # def save_data_to_file(self):
-    #     file = open("user_data.txt", "w+")
-    #     for index in range(len(self.angles)):
-    #         st = str(float(self.wave_numbers[index])) + \
-    #             " " + str(float(self.angles[index])) + "\n"
-    #         file.write(st)
-    #     file.close()
 
     def set_ang_button_clicked(self):
         if self.rigol.is_Xeryon_exist:
@@ -321,10 +382,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.start_button.setEnabled(False)
 
     def stop_button_clicked(self):
-        self.start_button.setEnabled(True)
-
         self.rigol.is_working = False
         self.rigol_thread.wait(5000)
+        self.start_button.setEnabled(True)
 
     def update_plot(self, avarage_integral, wave_number):
         self.x.append(float(wave_number))
@@ -349,43 +409,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal_send_command("gist")
         # self.termal_send_command("ps")
 
-    def termal_send_command(self, command):
-        if self.is_termal_exist:
-            str_temp = ""
-            current_temp = ""
-
-            if not self.ser.isOpen():
-                self.ser.open()
-
-            if self.ser.isOpen():
-                try:
-                    self.ser.flushInput()  # flush input buffer, discarding all its contents
-                    self.ser.flushOutput()  # flush output buffer, aborting current output
-                    command += '\r'
-                    self.ser.write(command.encode('ascii'))
-                    time.sleep(0.5)
-                    while True:
-                        response = self.ser.readline().decode('utf-8', errors='ignore')
-                        print("----read data: " + response)
-
-                        if command == "gist" + '\r':
-                            current_temp = re.findall("\d+\.\d+", response)
-                            break
-
-                        if response == '':
-                            print("finish reading")
-                            break
-
-                        if response == '01':
-                            str_temp = "01 ERROR"
-                            break
-
-                    self.ser.close()
-
-                except Exception as e:
-                    print("error communicating...: " + str(e))
-            else:
-                print("cannot open serial port ")
+    
 
             if str_temp != "01 ERROR":
                 str_temp = "Температура лазера= " + \
