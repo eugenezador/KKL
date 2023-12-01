@@ -34,6 +34,7 @@ class Rigol_Worker(QObject):
     is_Xeryon_exist = False
 
     angles_indx = 0
+    wave_indx = 0
 
     def __del__(self):
         if self.is_Xeryon_exist:
@@ -69,9 +70,11 @@ class Rigol_Worker(QObject):
     def get_start_angle_value(self, value):
         self.curent_ang = round(float(value), 2)
 
-        while round(float(self.cur_ang), 2) != round(float(self.angles[self.angles_indx]), 2):
-            if round(float(self.cur_ang), 2) > round(float(self.angles[self.angles_indx]), 2):
-                self.cur_ang -= 0.05
+        self.angles_indx = 0
+        self.wave_indx = 0
+        while round(float(self.curent_ang), 2) != round(float(self.angles[self.angles_indx]), 2):
+            if round(float(self.curent_ang), 2) > round(float(self.angles[self.angles_indx]), 2):
+                self.curent_ang -= 0.05
             elif self.angles_indx < len(self.angles):
                 self.angles_indx += 1
                 self.wave_indx += 1
@@ -97,9 +100,9 @@ class Rigol_Worker(QObject):
 
     def intergal_per_area(self):
         self.calc_error = False
-        time.sleep(0.250)
+        # time.sleep(0.1)
         self.osc[1].get_data('norm', 'channel%i.dat' % 1)
-        time.sleep(0.250)
+        # time.sleep(0.1)
         self.osc[2].get_data('norm', 'channel%i.dat' % 2)
 
         filename = "channel" + "1" + ".dat"
@@ -181,25 +184,25 @@ class Rigol_Worker(QObject):
             if integral > 0.5 and integral < 6:
                 res += float(integral)
 
-            res = float(res) / avarage_counter
-            print("res: " + str(res))
-        return res
+        res = float(res) / avarage_counter
+        print("res: " + str(res))
+        return float(res)
 
     def move_motor(self):
-
-        if self.rigol.is_Rigol_exist:
+        if self.is_Rigol_exist:
             self.axisX.setDPOS(self.angles[self.angles_indx])
             print(self.angles[self.angles_indx])
             self.angles_indx += 1
+            self.wave_indx += 1
 
     @Slot()
     def do_work(self):
         self.is_working = True
         while self.is_working:
-            time.sleep(0.250)
+            time.sleep(0.1)
             self.move_motor()
             self.sent_avarage_integral_value.emit(
-                self.avarage_integral_calc(self.angles_indx))
+                self.avarage_integral_calc(), int(self.wave_numbers[self.wave_indx]))
 
 
 class Worker(QObject):
@@ -309,7 +312,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.rigol.is_Xeryon_exist:
             if re.findall("\d+\.\d+", str(self.start_line_edit.text())) == "" or re.findall("\d+\.\d+", str(self.stop_line_edit.text())) == "":
                 self.label_status.setText("Введите число в фромате dddd.dddd")
-                time.sleep(1)
+                time.sleep(0.5)
             else:
                 self.x.clear()
                 self.y.clear()
@@ -327,6 +330,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rigol_thread.wait(5000)
 
     def update_plot(self, avarage_integral, wave_number):
+        print("in_update_plot")
         self.x.append(float(wave_number))
         self.y.append(float(avarage_integral))
 
@@ -363,7 +367,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.ser.flushOutput()  # flush output buffer, aborting current output
                     command += '\r'
                     self.ser.write(command.encode('ascii'))
-                    time.sleep(0.5)
+                    time.sleep(0.1)
                     while True:
                         response = self.ser.readline().decode('utf-8', errors='ignore')
                         print("----read data: " + response)
@@ -508,8 +512,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.termal_worker.is_working = False
         self.rigol.is_working = False
-        self.rigol_thread.wait(5000)
-        self.termal_worker_thread.wait(5000)
+        self.rigol_thread.wait(2000)
+        self.termal_worker_thread.wait(2000)
 
 
 ########################
