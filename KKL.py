@@ -362,7 +362,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal.moveToThread(self.termal_thread)
 
         # start the thread
-        self.termal_worker_thread.start()
+        self.termal_thread.start()
         ############## INIT DEVICES ################
         self.init_Xeryon("/dev/ttyACM0")
         self.init_Rigol()
