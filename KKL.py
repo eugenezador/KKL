@@ -118,11 +118,12 @@ class Rigol_Worker(QObject):
 
         self.np_ch1_y = np.asarray(self.ch1_y)
         self.np_ch2_y = np.asarray(self.ch2_y)
+
         self.np_ch1_x = np.asarray(self.ch1_x)
         self.np_ch2_x = np.asarray(self.ch2_x)
 
-        self.move_integral_data(self.ch1_y)
-        self.move_integral_data(self.ch2_y)
+        self.move_integral_data(self.np_ch1_y)
+        self.move_integral_data(self.np_ch2_y)
 
         result = 0
         if self.calc_error:
@@ -165,8 +166,8 @@ class Rigol_Worker(QObject):
     #     return summ
 
     def get_data_for_integral(self, filemane, chan_num, x_array, y_array):
-        x_array.clear()
-        y_array.clear()
+        del x_array[:]
+        del y_array[:]
 
         file1 = open(filemane, 'r')
         Lines = file1.readlines()
@@ -426,6 +427,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 ###############  Termal ########
+
 
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
