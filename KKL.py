@@ -183,6 +183,7 @@ class Rigol_Worker(QObject):
     def avarage_integral_calc(self):
         res = 0
         avarage_counter = 0
+        start = time.time()
         for i in range(0, 10):
             integral = float(self.intergal_per_area())
             print(integral)
@@ -192,6 +193,8 @@ class Rigol_Worker(QObject):
 
         res = float(res) / avarage_counter
         print("res: " + str(res))
+        end = time.time()
+        print("Calc time = " + str(end - start))
         return float(res)
 
     def move_motor(self, value):
