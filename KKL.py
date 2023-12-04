@@ -103,14 +103,10 @@ class Rigol_Worker(QObject):
     ch1_y = []
     ch2_x = []
     ch2_y = []
-    norm_x_data = []
-    norm_y_data = []
 
     def intergal_per_area(self):
         self.calc_error = False
-        # time.sleep(0.1)
         self.osc[1].get_data('norm', 'channel%i.dat' % 1)
-        # time.sleep(0.1)
         self.osc[2].get_data('norm', 'channel%i.dat' % 2)
 
         filename = "channel" + "1" + ".dat"
@@ -125,16 +121,10 @@ class Rigol_Worker(QObject):
         if self.calc_error:
             print("error")
         else:
-            # ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
-            # ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
-            np_ch1_y = np.asarray(self.ch1_y)
-            np_ch1_x = np.asarray(self.ch1_x)
-
-            np_ch2_y = np.asarray(self.ch2_y)
-            np_ch2_x = np.asarray(self.ch2_x)
-
-            ch1_sum = np.trapz(np_ch1_y, np_ch1_x)
-            ch2_sum = np.trapz(np_ch2_y, np_ch2_x)
+            # ch1_sum = np.trapz(self.ch1_y, self.ch1_x)
+            # ch2_sum = np.trapz(self.ch2_y, self.ch2_x)
+            ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
+            ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
 
             if float(ch2_sum) != 0:
                 result = float(ch1_sum) / float(ch2_sum)
@@ -145,14 +135,27 @@ class Rigol_Worker(QObject):
         return result
 
     def move_integral_data(self, y_array):
-        if y_array:
+        if np.any(y_array):
             max_value = max(y_array)
-            for i in range(len(y_array) - 1):
-                y_array[i] = y_array[i] - max_value
-                y_array[i] *= -1
+            for item in y_array:
+                item = item - max_value
+                item *= -1
         else:
             print("<< recive empty data from channel >>")
             self.calc_error = True
+
+    def calculate_trapezoidal_sum(self, x_array, y_array):
+        summ = 0
+        for indx in range(len(x_array) - 1):
+
+            half = (abs(y_array[indx]) + abs(y_array[indx + 1])) / 2
+
+            step = (x_array[indx + 1] -
+                    x_array[indx])
+
+            summ += half * step
+
+        return summ
 
     def get_data_for_integral(self, filemane, chan_num, x_array, y_array):
         x_array.clear()
@@ -160,6 +163,8 @@ class Rigol_Worker(QObject):
 
         file1 = open(filemane, 'r')
         Lines = file1.readlines()
+
+        counter = 1
 
         for line in Lines:
             # value before comma exept comma
@@ -171,10 +176,12 @@ class Rigol_Worker(QObject):
                 if float(x) > float(3.2e-07) and float(x) < float(1.14e-06) and float(y) < float(0.05):
                     x_array.append(float(x))
                     y_array.append(float(y))
+                    counter += 1
             elif chan_num == 2:
                 if float(x) > float(1.02e-06) and float(x) < float(1.87e-06) and float(y) < float(0.05):
                     x_array.append(float(x))
                     y_array.append(float(y))
+                    counter += 1
 
 ##############################
 
@@ -267,7 +274,7 @@ class Termal_Worker(QObject):
                     self.ser.flushOutput()  # flush output buffer, aborting current output
                     command += '\r'
                     self.ser.write(command.encode('ascii'))
-                    time.sleep(0.5)
+                    time.sleep(0.2)
                     while True:
                         response = self.ser.readline().decode('utf-8', errors='ignore')
                         print("----read data: " + response)
@@ -413,7 +420,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.start_button.setEnabled(True)
 
     def update_plot(self, avarage_integral, wave_number):
-        print("in_update_plot")
         self.x.append(float(wave_number))
         self.y.append(float(avarage_integral))
 
@@ -421,7 +427,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 ###############  Termal ########
-
 
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
