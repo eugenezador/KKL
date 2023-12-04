@@ -26,6 +26,8 @@ from pathlib import Path
 
 from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slot
 
+import numpy as np
+
 
 class Rigol_Worker(QObject):
     sent_avarage_integral_value = Signal(float, float)
@@ -101,14 +103,10 @@ class Rigol_Worker(QObject):
     ch1_y = []
     ch2_x = []
     ch2_y = []
-    norm_x_data = []
-    norm_y_data = []
 
     def intergal_per_area(self):
         self.calc_error = False
-        # time.sleep(0.1)
         self.osc[1].get_data('norm', 'channel%i.dat' % 1)
-        # time.sleep(0.1)
         self.osc[2].get_data('norm', 'channel%i.dat' % 2)
 
         filename = "channel" + "1" + ".dat"
@@ -123,8 +121,11 @@ class Rigol_Worker(QObject):
         if self.calc_error:
             print("error")
         else:
+            # ch1_sum = np.trapz(self.ch1_y, self.ch1_x)
+            # ch2_sum = np.trapz(self.ch2_y, self.ch2_x)
             ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
             ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
+
             if float(ch2_sum) != 0:
                 result = float(ch1_sum) / float(ch2_sum)
             else:
@@ -134,11 +135,11 @@ class Rigol_Worker(QObject):
         return result
 
     def move_integral_data(self, y_array):
-        if y_array:
+        if np.any(y_array):
             max_value = max(y_array)
-            for i in range(len(y_array) - 1):
-                y_array[i] = y_array[i] - max_value
-                y_array[i] *= -1
+            for item in y_array:
+                item = item - max_value
+                item *= -1
         else:
             print("<< recive empty data from channel >>")
             self.calc_error = True
@@ -163,6 +164,8 @@ class Rigol_Worker(QObject):
         file1 = open(filemane, 'r')
         Lines = file1.readlines()
 
+        counter = 1
+
         for line in Lines:
             # value before comma exept comma
             x = float(''.join(re.findall("^(.+?),", line)))
@@ -173,10 +176,12 @@ class Rigol_Worker(QObject):
                 if float(x) > float(3.2e-07) and float(x) < float(1.14e-06) and float(y) < float(0.05):
                     x_array.append(float(x))
                     y_array.append(float(y))
+                    counter += 1
             elif chan_num == 2:
                 if float(x) > float(1.02e-06) and float(x) < float(1.87e-06) and float(y) < float(0.05):
                     x_array.append(float(x))
                     y_array.append(float(y))
+                    counter += 1
 
 ##############################
 
@@ -195,12 +200,14 @@ class Rigol_Worker(QObject):
         print("res: " + str(res))
         end = time.time()
         print("Calc time = " + str(end - start))
+
         return float(res)
 
     def move_motor(self, value):
         if self.is_Rigol_exist:
             self.axisX.setDPOS(value)
-            self.sent_intergal_value.emit(self.avarage_integral_calc())
+            self.sent_intergal_value.emit(
+                round(self.avarage_integral_calc(), 2))
 
     def step_motor(self):
         if self.is_Rigol_exist:
@@ -267,7 +274,7 @@ class Termal_Worker(QObject):
                     self.ser.flushOutput()  # flush output buffer, aborting current output
                     command += '\r'
                     self.ser.write(command.encode('ascii'))
-                    time.sleep(0.5)
+                    time.sleep(0.2)
                     while True:
                         response = self.ser.readline().decode('utf-8', errors='ignore')
                         print("----read data: " + response)
@@ -277,7 +284,7 @@ class Termal_Worker(QObject):
 
                         if command == "gist" + '\r':
                             self.sent_current_temperature_value.emit(
-                                round(float(re.findall("\d+\.\d+", response)), 2))
+                                round(float(''.join(re.findall("\d+\.\d+", response))), 2))
                             break
 
                         if command == "enable" + '\r' and response == '00':
@@ -337,7 +344,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.move_Xeryon.connect(self.rigol.move_motor)
 
-        self.rigol.sent_avarage_integral_value.connect(
+        self.rigol.sent_intergal_value.connect(
             self.print_intergal_value)
 
         self.start_rigol_xeryon_work.connect(self.rigol.do_work)
@@ -413,7 +420,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.start_button.setEnabled(True)
 
     def update_plot(self, avarage_integral, wave_number):
-        print("in_update_plot")
         self.x.append(float(wave_number))
         self.y.append(float(avarage_integral))
 
@@ -421,7 +427,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 ###############  Termal ########
-
 
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
@@ -432,7 +437,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def print_current_temperature(self, current_temp):
         str_temp = "Температура лазера= " + \
-            ''.join(current_temp) + " С || " + \
+            str(current_temp) + " С || " + \
             "Установленная температура лазера = 18 C "
 
         if self.termal.is_Termal_turn_On:
@@ -521,7 +526,7 @@ class MainWindow(QtWidgets.QMainWindow):
         save_to_file_button = QPushButton("Сохранить данные в файл")
         # save_to_file_button.clicked.connect(self.save_data_to_file)
         self.set_ang_line_edit = QLineEdit("101.1")
-        self.label_integral_value = QLabel("")
+        self.label_integral_value = QLabel("haha")
         self.label_integral_value.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         set_ang_layout.addWidget(set_ang_button)
         set_ang_layout.addWidget(self.set_ang_line_edit)
@@ -545,16 +550,16 @@ class MainWindow(QtWidgets.QMainWindow):
                                             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                                             QtWidgets.QMessageBox.Yes)
         if ret == QtWidgets.QMessageBox.Yes:
-            self.termal_send_command("disable")
+            self.turn_off_termal.emit()
             QtWidgets.QMainWindow.closeEvent(self, event)
         else:
             QtWidgets.QMainWindow.closeEvent(self, event)
             # event.ignore()
 
-        self.termal_worker.is_working = False
+        self.termal.is_working = False
         self.rigol.is_working = False
         self.rigol_thread.wait(2000)
-        self.termal_worker_thread.wait(2000)
+        self.termal_thread.wait(2000)
 
 
 ########################
