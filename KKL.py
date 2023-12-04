@@ -20,7 +20,7 @@ from os import system
 import re
 from threading import Thread
 
-
+import numpy as np
 from pathlib import Path
 
 
@@ -97,7 +97,7 @@ class Rigol_Worker(QObject):
 
     ################### --Integral-- #######################
     calc_error = False
-    ch1_x = []
+    ch1_x = np.empty
     ch1_y = []
     ch2_x = []
     ch2_y = []
@@ -116,6 +116,11 @@ class Rigol_Worker(QObject):
         filename = "channel" + "2" + ".dat"
         self.get_data_for_integral(filename, 2, self.ch2_x, self.ch2_y)
 
+        self.np_ch1_y = np.asarray(self.ch1_y)
+        self.np_ch2_y = np.asarray(self.ch2_y)
+        self.np_ch1_x = np.asarray(self.ch1_x)
+        self.np_ch2_x = np.asarray(self.ch2_x)
+
         self.move_integral_data(self.ch1_y)
         self.move_integral_data(self.ch2_y)
 
@@ -123,8 +128,11 @@ class Rigol_Worker(QObject):
         if self.calc_error:
             print("error")
         else:
-            ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
-            ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
+            # ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
+            # ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
+
+            ch1_sum = np.trapz(self.ch1_y, self.ch1_x)
+            ch2_sum = np.trapz(self.ch2_y, self.ch2_x)
             if float(ch2_sum) != 0:
                 result = float(ch1_sum) / float(ch2_sum)
             else:
@@ -135,26 +143,26 @@ class Rigol_Worker(QObject):
 
     def move_integral_data(self, y_array):
         if y_array:
-            max_value = max(y_array)
-            for i in range(len(y_array) - 1):
+            max_value = np.max(y_array)
+            for i in y_array.size - 1:
                 y_array[i] = y_array[i] - max_value
                 y_array[i] *= -1
         else:
             print("<< recive empty data from channel >>")
             self.calc_error = True
 
-    def calculate_trapezoidal_sum(self, x_array, y_array):
-        summ = 0
-        for indx in range(len(x_array) - 1):
+    # def calculate_trapezoidal_sum(self, x_array, y_array):
+    #     summ = 0
+    #     for indx in range(len(x_array) - 1):
 
-            half = (abs(y_array[indx]) + abs(y_array[indx + 1])) / 2
+    #         half = (abs(y_array[indx]) + abs(y_array[indx + 1])) / 2
 
-            step = (x_array[indx + 1] -
-                    x_array[indx])
+    #         step = (x_array[indx + 1] -
+    #                 x_array[indx])
 
-            summ += half * step
+    #         summ += half * step
 
-        return summ
+    #     return summ
 
     def get_data_for_integral(self, filemane, chan_num, x_array, y_array):
         x_array.clear()
@@ -362,7 +370,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal.moveToThread(self.termal_thread)
 
         # start the thread
-        self.termal_worker_thread.start()
+        self.termal_thread.start()
         ############## INIT DEVICES ################
         self.init_Xeryon("/dev/ttyACM0")
         self.init_Rigol()
@@ -418,7 +426,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 ###############  Termal ########
-
 
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
@@ -542,16 +549,16 @@ class MainWindow(QtWidgets.QMainWindow):
                                             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                                             QtWidgets.QMessageBox.Yes)
         if ret == QtWidgets.QMessageBox.Yes:
-            self.termal_send_command("disable")
+            self.turn_off_termal.emit()
             QtWidgets.QMainWindow.closeEvent(self, event)
         else:
             QtWidgets.QMainWindow.closeEvent(self, event)
             # event.ignore()
 
-        self.termal_worker.is_working = False
+        self.termal.is_working = False
         self.rigol.is_working = False
         self.rigol_thread.wait(2000)
-        self.termal_worker_thread.wait(2000)
+        self.termal_thread.wait(2000)
 
 
 ########################
