@@ -20,11 +20,13 @@ from os import system
 import re
 from threading import Thread
 
-import numpy as np
+
 from pathlib import Path
 
 
 from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slot
+
+import numpy as np
 
 
 class Rigol_Worker(QObject):
@@ -97,7 +99,7 @@ class Rigol_Worker(QObject):
 
     ################### --Integral-- #######################
     calc_error = False
-    ch1_x = np.empty
+    ch1_x = []
     ch1_y = []
     ch2_x = []
     ch2_y = []
@@ -116,14 +118,8 @@ class Rigol_Worker(QObject):
         filename = "channel" + "2" + ".dat"
         self.get_data_for_integral(filename, 2, self.ch2_x, self.ch2_y)
 
-        self.np_ch1_y = np.asarray(self.ch1_y)
-        self.np_ch2_y = np.asarray(self.ch2_y)
-
-        self.np_ch1_x = np.asarray(self.ch1_x)
-        self.np_ch2_x = np.asarray(self.ch2_x)
-
-        self.move_integral_data(self.np_ch1_y)
-        self.move_integral_data(self.np_ch2_y)
+        self.move_integral_data(self.ch1_y)
+        self.move_integral_data(self.ch2_y)
 
         result = 0
         if self.calc_error:
@@ -131,9 +127,15 @@ class Rigol_Worker(QObject):
         else:
             # ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
             # ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
+            np_ch1_y = np.asarray(self.ch1_y)
+            np_ch1_x = np.asarray(self.ch1_x)
 
-            ch1_sum = np.trapz(self.ch1_y, self.ch1_x)
-            ch2_sum = np.trapz(self.ch2_y, self.ch2_x)
+            np_ch2_y = np.asarray(self.ch2_y)
+            np_ch2_x = np.asarray(self.ch2_x)
+
+            ch1_sum = np.trapz(np_ch1_y, np_ch1_x)
+            ch2_sum = np.trapz(np_ch2_y, np_ch2_x)
+
             if float(ch2_sum) != 0:
                 result = float(ch1_sum) / float(ch2_sum)
             else:
@@ -144,30 +146,17 @@ class Rigol_Worker(QObject):
 
     def move_integral_data(self, y_array):
         if y_array:
-            max_value = np.max(y_array)
-            for i in y_array.size - 1:
+            max_value = max(y_array)
+            for i in range(len(y_array) - 1):
                 y_array[i] = y_array[i] - max_value
                 y_array[i] *= -1
         else:
             print("<< recive empty data from channel >>")
             self.calc_error = True
 
-    # def calculate_trapezoidal_sum(self, x_array, y_array):
-    #     summ = 0
-    #     for indx in range(len(x_array) - 1):
-
-    #         half = (abs(y_array[indx]) + abs(y_array[indx + 1])) / 2
-
-    #         step = (x_array[indx + 1] -
-    #                 x_array[indx])
-
-    #         summ += half * step
-
-    #     return summ
-
     def get_data_for_integral(self, filemane, chan_num, x_array, y_array):
-        del x_array[:]
-        del y_array[:]
+        x_array.clear()
+        y_array.clear()
 
         file1 = open(filemane, 'r')
         Lines = file1.readlines()
@@ -192,6 +181,7 @@ class Rigol_Worker(QObject):
     def avarage_integral_calc(self):
         res = 0
         avarage_counter = 0
+        start = time.time()
         for i in range(0, 10):
             integral = float(self.intergal_per_area())
             print(integral)
@@ -201,12 +191,16 @@ class Rigol_Worker(QObject):
 
         res = float(res) / avarage_counter
         print("res: " + str(res))
+        end = time.time()
+        print("Calc time = " + str(end - start))
+
         return float(res)
 
     def move_motor(self, value):
         if self.is_Rigol_exist:
             self.axisX.setDPOS(value)
-            self.sent_intergal_value.emit(self.avarage_integral_calc())
+            self.sent_intergal_value.emit(
+                round(self.avarage_integral_calc(), 2))
 
     def step_motor(self):
         if self.is_Rigol_exist:
@@ -283,7 +277,7 @@ class Termal_Worker(QObject):
 
                         if command == "gist" + '\r':
                             self.sent_current_temperature_value.emit(
-                                round(float(re.findall("\d+\.\d+", response)), 2))
+                                round(float(''.join(re.findall("\d+\.\d+", response))), 2))
                             break
 
                         if command == "enable" + '\r' and response == '00':
@@ -343,7 +337,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.move_Xeryon.connect(self.rigol.move_motor)
 
-        self.rigol.sent_avarage_integral_value.connect(
+        self.rigol.sent_intergal_value.connect(
             self.print_intergal_value)
 
         self.start_rigol_xeryon_work.connect(self.rigol.do_work)
@@ -438,7 +432,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def print_current_temperature(self, current_temp):
         str_temp = "Температура лазера= " + \
-            ''.join(current_temp) + " С || " + \
+            str(current_temp) + " С || " + \
             "Установленная температура лазера = 18 C "
 
         if self.termal.is_Termal_turn_On:
@@ -527,7 +521,7 @@ class MainWindow(QtWidgets.QMainWindow):
         save_to_file_button = QPushButton("Сохранить данные в файл")
         # save_to_file_button.clicked.connect(self.save_data_to_file)
         self.set_ang_line_edit = QLineEdit("101.1")
-        self.label_integral_value = QLabel("")
+        self.label_integral_value = QLabel("haha")
         self.label_integral_value.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         set_ang_layout.addWidget(set_ang_button)
         set_ang_layout.addWidget(self.set_ang_line_edit)
