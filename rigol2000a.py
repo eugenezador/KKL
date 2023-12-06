@@ -5,6 +5,7 @@ import numpy as np
 import tqdm
 from usb_usbtmc_info import usbtmc_info
 
+
 class _Usbtmc(object):
     '''
     Basic read/write interface to USBTMC _devices.
@@ -16,6 +17,7 @@ class _Usbtmc(object):
         usbtmc_dev_number (int): USBTMC device number the
             power meter is.
     '''
+
     def __init__(self, usbtmc_dev_number):
         usbtmc = '/dev/usbtmc' + str(usbtmc_dev_number)
         if Path(usbtmc).exists():
@@ -68,6 +70,7 @@ class _Usbtmc(object):
         self._write(command)
         resp = self._read_raw(number_of_characters)
         return resp
+
 
 class _Rigol2072aChannel:
     def __init__(self, channel, osc):
@@ -141,7 +144,7 @@ class _Rigol2072aChannel:
         return float(self._ask(':prob?'))
 
     def set_probe_ratio(self, ratio):
-        assert ratio in (0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1,\
+        assert ratio in (0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1,
                          2, 5, 10, 20, 50, 100, 200, 500, 1000)
         self._write(':prob %s' % ratio)
         return self.get_probe_ratio()
@@ -155,15 +158,12 @@ class _Rigol2072aChannel:
         self._write(':unit %s' % unit)
 
     def get_data_premable(self):
-        
         pre = self._osc._ask(':wav:pre?').split(',')
         time.sleep(0.250)
-        print("pre:")
-        print(pre)
-        if pre[0] == '':
-            print("pre:")
-            print(pre)
-            pre[0] = 0
+        # print("pre:")
+        # print(pre)
+        while pre[0] == '':
+            pre = self._osc._ask(':wav:pre?').split(',')
         pre_dict = {
             # eugene: zdes poyvilsia error
             'format': int(pre[0]),
@@ -178,15 +178,15 @@ class _Rigol2072aChannel:
             'yreference': float(pre[9]),
         }
         return pre_dict
-        
-    #eugene
+
+    # eugene
     def get_per_area(self):
         return self._osc._ask(':MEAS:MPAR? CHAN%i' % self._channel)
-        
+
     def get_vpp(self):
         return self._osc._ask(':MEAS:VPP? CHAN%i' % self._channel)
-        
- #[:SOURce<n>]:VOLTage[:LEVel][:IMMediate][:AMPLitude]
+
+ # [:SOURce<n>]:VOLTage[:LEVel][:IMMediate][:AMPLitude]
 
     def get_data(self, mode='norm', filename=None):
         assert mode in ('norm', 'raw')
@@ -200,7 +200,8 @@ class _Rigol2072aChannel:
 
         if mode == 'raw':
             self._osc._write(':stop')
-            max_num_pts = 1800000 # Reading more than this results in the 5sec USBTMC kernel driver.
+            # Reading more than this results in the 5sec USBTMC kernel driver.
+            max_num_pts = 1800000
             num_blocks = info['points'] // max_num_pts
             last_block_pts = info['points'] % max_num_pts
 
@@ -211,11 +212,14 @@ class _Rigol2072aChannel:
                     self._osc._write(':wav:stop %i' % (max_num_pts*(i+1)))
                 else:
                     if last_block_pts:
-                        self._osc._write(':wav:star %i' % (1+num_blocks*max_num_pts))
-                        self._osc._write(':wav:stop %i' % (num_blocks*max_num_pts+last_block_pts))
+                        self._osc._write(':wav:star %i' %
+                                         (1+num_blocks*max_num_pts))
+                        self._osc._write(':wav:stop %i' % (
+                            num_blocks*max_num_pts+last_block_pts))
                     else:
                         break
-                data = self._osc._ask_raw(':wav:data?', max_num_pts+100000)[11:]
+                data = self._osc._ask_raw(
+                    ':wav:data?', max_num_pts+100000)[11:]
                 data = np.frombuffer(data, 'B')
                 datas.append(data)
             datas = np.concatenate(datas)
@@ -239,6 +243,7 @@ class _Rigol2072aChannel:
 
         return t, v
 
+
 class _Rigol2072aTrigger:
     def __init__(self, osc):
         self._osc = osc
@@ -256,6 +261,7 @@ class _Rigol2072aTrigger:
     def set_trigger_holdoff_s(self, holdoff):
         self._osc._write(':trig:hold %.3e' % holdoff)
         return self.get_trigger_holdoff_s()
+
 
 class _Rigol2072aTimebase:
     def __init__(self, osc):
@@ -296,6 +302,7 @@ class _Rigol2072aTimebase:
         self._write(':offs %.4e' % -offset)
         return self.get_timebase_offset_s()
 
+
 class Rigol2072a(_Usbtmc):
     def __init__(self):
         rigol_vid = '0x1ab1'
@@ -308,7 +315,7 @@ class Rigol2072a(_Usbtmc):
 
         _Usbtmc.__init__(self, usbtmc_num)
 
-        self._channels = [_Rigol2072aChannel(c, self) for c in range(1,3)]
+        self._channels = [_Rigol2072aChannel(c, self) for c in range(1, 3)]
         self.trigger = _Rigol2072aTrigger(self)
         self.timebase = _Rigol2072aTimebase(self)
 
@@ -379,7 +386,7 @@ class Rigol2072a(_Usbtmc):
     def get_memory_depth(self):
         md = self._ask(':acq:mdep?')
         if md != 'AUTO':
-           md = int(md)
+            md = int(md)
         return md
 
     def set_memory_depth(self, pts):

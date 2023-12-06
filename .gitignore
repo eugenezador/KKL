@@ -1,3 +1,7 @@
+channel1.dat
+
+channel2.dat
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
