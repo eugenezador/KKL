@@ -5,7 +5,7 @@ import rigol2000a
 import serial
 import time
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QPushButton, QVBoxLayout,  QCheckBox, QHBoxLayout, QLabel, QFrame, QLineEdit, QComboBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QMessageBox, QPushButton, QVBoxLayout,  QCheckBox, QHBoxLayout, QLabel, QFrame, QLineEdit, QComboBox
 from PyQt5 import QtWidgets, QtCore
 
 from PyQt5.QtGui import QFont
@@ -19,7 +19,6 @@ from glob import glob
 from os import system
 import re
 from threading import Thread
-
 
 from pathlib import Path
 
@@ -204,7 +203,7 @@ class Rigol_Worker(QObject):
         return float(res)
 
     def move_motor(self, value):
-        if self.is_Rigol_exist:
+        if self.is_Rigol_exist and self.is_Xeryon_exist:
             self.axisX.setDPOS(value)
             self.sent_intergal_value.emit(
                 round(self.avarage_integral_calc(), 2))
@@ -328,6 +327,10 @@ class MainWindow(QtWidgets.QMainWindow):
     x = []
     y = []
     ###########
+    color_array = ['orange', 'darkRed', 'darkCyan', 'g',
+                   'y', 'darkMagenta', 'b', 'r', 'c', 'm', 'black']
+
+    color_index = -1
 
     def closeEvent(self, event):
         self.close_window(event)
@@ -395,8 +398,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.move_Xeryon.emit(self.set_ang_line_edit.text())
 
     def print_intergal_value(self, value):
-        self.label_integral_value.setText(
-            "Интенсивность: " + str(value) + " у:е")
+        self.label_integral_value.setText(str(value))
 
     def start_button_clicked(self):
         if self.rigol.is_Xeryon_exist:
@@ -406,6 +408,12 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.x.clear()
                 self.y.clear()
+
+                if self.color_index < (len(self.color_array) - 1):
+                    self.color_index += 1
+                else:
+                    self.color_index = 0
+                print("color index : " + str(self.color_index))
 
                 self.rigol_thread.start()
                 self.sent_start_xeryon_angle.emit(
@@ -418,14 +426,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rigol_thread.wait(5000)
         self.start_button.setEnabled(True)
 
+    def save_data_to_file(self):
+        filename = "user_spectr_" + time.strftime("%H:%M:%S-%d.%m.%Y") + ".txt"
+        file = open(filename, "w+")
+        for index in range(len(self.x)):
+            st = str(float(self.x[index])) + \
+                " " + str(float(self.y[index])) + "\n"
+            file.write(st)
+        file.close()
+
     def update_plot(self, avarage_integral, wave_number):
         self.x.append(float(wave_number))
         self.y.append(float(avarage_integral))
 
-        self.data_line.setData(self.x, self.y)
+        # self.data_line.addData(self.x, self.y)
+
+        pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
+                       style=QtCore.Qt.SolidLine)
+        self.graphWidget.plot(self.x, self.y, pen=pen)
 
 
 ###############  Termal ########
+
 
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
@@ -473,10 +495,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.graphWidget.getAxis("bottom").setTickFont(font)
         self.graphWidget.getAxis("left").setTickFont(font)
 
-        pen = pg.mkPen(color=(0, 255, 0), width=8, style=QtCore.Qt.SolidLine)
+        # self.color_char = "r"
+        # self.pen = pg.mkPen(color=(0, self.color_const, 0), width=8,
+        #                     style=QtCore.Qt.SolidLine)
 
-        self.data_line = self.graphWidget.plot(
-            self.x, self.y, name="my plot",  pen=pen)
+        # self.graphWidget.plot(self.x, self.y, name="my plot",  pen=self.pen)
 
         ##############
         self.start_button = QPushButton(
@@ -507,7 +530,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # STOP
         stop_layout = QHBoxLayout()
         self.stop_label = QLabel("Конечный угол: ")
-        # self.stop_line_edit = QLineEdit("110")
         self.stop_line_edit = QLineEdit("93.75")
         termal_off_button = QPushButton("ВЫКЛ. ОХЛАЖДЕНИЕ")
         termal_off_button.clicked.connect(self.termal_off_button_clicked)
@@ -523,13 +545,17 @@ class MainWindow(QtWidgets.QMainWindow):
         set_ang_button = QPushButton("Установить угол")
         set_ang_button.clicked.connect(self.set_ang_button_clicked)
         save_to_file_button = QPushButton("Сохранить данные в файл")
-        # save_to_file_button.clicked.connect(self.save_data_to_file)
+        save_to_file_button.clicked.connect(self.save_data_to_file)
         self.set_ang_line_edit = QLineEdit("101.1")
-        self.label_integral_value = QLabel("haha")
+        self.set_ang_label = QLabel("Интенсивность:")
+        self.label_integral_value = QLabel("")
+        self.set_ang_label_ye = QLabel("у:е")
         self.label_integral_value.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         set_ang_layout.addWidget(set_ang_button)
         set_ang_layout.addWidget(self.set_ang_line_edit)
+        set_ang_layout.addWidget(self.set_ang_label)
         set_ang_layout.addWidget(self.label_integral_value)
+        set_ang_layout.addWidget(self.set_ang_label_ye)
         set_ang_layout.addWidget(save_to_file_button)
 
         layout.addLayout(set_ang_layout)
@@ -545,11 +571,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(widget)
 
     def close_window(self, event):
+
         ret = QtWidgets.QMessageBox.warning(None, 'Внимание!', 'Лазер Выключен?',
                                             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                                             QtWidgets.QMessageBox.Yes)
         if ret == QtWidgets.QMessageBox.Yes:
             self.turn_off_termal.emit()
+            time.sleep(0.2)
             QtWidgets.QMainWindow.closeEvent(self, event)
         else:
             QtWidgets.QMainWindow.closeEvent(self, event)
@@ -557,8 +585,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.termal.is_working = False
         self.rigol.is_working = False
-        self.rigol_thread.wait(2000)
-        self.termal_thread.wait(2000)
+        self.rigol_thread.wait(1000)
+        self.termal_thread.wait(1000)
 
 
 ########################

@@ -37,7 +37,8 @@ AUTO_SEND_SETTINGS = True
 AUTO_SEND_ENBL = False
 
 # The value's of these commands don't get stored in this library.
-NOT_SETTING_COMMANDS = ["DPOS", "EPOS", "HOME", "ZERO", "RSET", "INDX", "STEP", "MOVE", "STOP", "CONT", "SAVE", "STAT", "TIME", "SRNO", "SOFT", "XLA3", "XLA1", "XRT1", "XRT3", "XLS1", "XLS3", "SFRQ", "SYNC"]
+NOT_SETTING_COMMANDS = ["DPOS", "EPOS", "HOME", "ZERO", "RSET", "INDX", "STEP", "MOVE", "STOP", "CONT",
+                        "SAVE", "STAT", "TIME", "SRNO", "SOFT", "XLA3", "XLA1", "XRT1", "XRT3", "XLS1", "XLS3", "SFRQ", "SYNC"]
 DEFAULT_POLI_VALUE = 200
 AMPLITUDE_MULTIPLIER = 1456.0
 PHASE_MULTIPLIER = 182
@@ -45,10 +46,11 @@ PHASE_MULTIPLIER = 182
 
 class Xeryon:
     axis_list = None  # A list storing all the axis in the system.
-    axis_letter_list = None # A list storing all the axis_letters in the system.
+    # A list storing all the axis_letters in the system.
+    axis_letter_list = None
     master_settings = None
 
-    def __init__(self, COM_port = None, baudrate = 115200):
+    def __init__(self, COM_port=None, baudrate=115200):
         """
             :param COM_port: Specify the COM port used
             :type COM_port: string
@@ -58,7 +60,8 @@ class Xeryon:
 
             Main Xeryon Drive Class, initialize with the COM port and baudrate for communication with the driver.
         """
-        self.comm = Communication(self, COM_port, baudrate)  # Startup communication
+        self.comm = Communication(
+            self, COM_port, baudrate)  # Startup communication
         self.axis_list = []
         self.axis_letter_list = []
         self.master_settings = {}
@@ -69,7 +72,7 @@ class Xeryon:
         """
         return len(self.getAllAxis()) <= 1
 
-    def start(self, external_communication_thread = False):
+    def start(self, external_communication_thread=False):
         """
         :return: Nothing.
         This functions NEEDS to be ran before any commands are executed.
@@ -78,8 +81,9 @@ class Xeryon:
         if len(self.getAllAxis()) <= 0:
             raise Exception(
                 "Cannot start the system without stages. The stages don't have to be connnected, only initialized in the software.")
-        
-        comm = self.getCommunication().start(external_communication_thread)  # Start communication
+
+        comm = self.getCommunication().start(
+            external_communication_thread)  # Start communication
 
         for axis in self.getAllAxis():
             axis.reset()
@@ -97,11 +101,9 @@ class Xeryon:
             axis.sendCommand("SSPD=?")
             axis.sendCommand("PTO2=?")
             axis.sendCommand("PTOL=?")
-        
-        
+
         if external_communication_thread:
             return comm
-        
 
     def stop(self):
         """
@@ -115,7 +117,6 @@ class Xeryon:
         self.getCommunication().closeCommunication()  # Close communication
         outputConsole("Program stopped running.")
 
-
     def stopMovements(self):
         """
         Just stop moving.
@@ -123,7 +124,6 @@ class Xeryon:
         for axis in self.getAllAxis():
             axis.sendCommand("STOP=0")
             axis.was_valid_DPOS = False
-
 
     def reset(self):
         """
@@ -186,21 +186,26 @@ class Xeryon:
         try:
             file = open(SETTINGS_FILENAME, "r")
             for line in file.readlines():  # For each line:
-                if "=" in line and line.find("%") != 0:  # Check if it's a command and not a comment or blank line.
+                # Check if it's a command and not a comment or blank line.
+                if "=" in line and line.find("%") != 0:
 
-                    line = line.strip("\n\r").replace(" ", "")  # Strip spaces and newlines.
-                    axis = self.getAllAxis()[0]  # Default select the first axis.
+                    # Strip spaces and newlines.
+                    line = line.strip("\n\r").replace(" ", "")
+                    # Default select the first axis.
+                    axis = self.getAllAxis()[0]
                     if ":" in line:  # Check if axis is specified
                         axis = self.getAxis(line.split(":")[0])
                         if axis is None:  # Check if specified axis exists
-                            continue  # No valid axis? ==> IGNORE and loop further.
+                            # No valid axis? ==> IGNORE and loop further.
+                            continue
                         line = line.split(":")[1]  # Strip "X:" from command
                     elif not self.isSingleAxisSystem():
                         # This line doesn't contain ":", so it doesn't specify an axis.
                         # BUT It's a multi-axis system ==> so these settings are for the master.
                         if "%" in line:  # Ignore comments
                             line = line.split("%")[0]
-                        self.setMasterSetting(line.split("=")[0], line.split("=")[1], True)
+                        self.setMasterSetting(line.split(
+                            "=")[0], line.split("=")[1], True)
                         continue
 
                     if "%" in line:  # Ignore comments
@@ -209,19 +214,19 @@ class Xeryon:
                     tag = line.split("=")[0]
                     value = line.split("=")[1]
 
-                    axis.setSetting(tag, value, True, doNotSendThrough=True)  # Update settings for specified axis.
+                    # Update settings for specified axis.
+                    axis.setSetting(tag, value, True, doNotSendThrough=True)
 
             file.close()  # Close file
         except FileNotFoundError as e:
             outputConsole("No settings_default.txt found.")
             # self.stop()  # Make sure the thread also stops.
             # raise Exception(
-                # "ERROR: settings_default.txt file not found. Place it in the same folder as Xeryon.py. \n "
-                # "The settings_default.txt is delivered in the same folder as the Windows Interface. \n " + str(e))
+            # "ERROR: settings_default.txt file not found. Place it in the same folder as Xeryon.py. \n "
+            # "The settings_default.txt is delivered in the same folder as the Windows Interface. \n " + str(e))
         except Exception as e:
             raise e
 
-    
     def setMasterSetting(self, tag, value, fromSettingsFile=False):
         """
             In multi-axis systems, commands without an axis specified are for the master.
@@ -232,8 +237,7 @@ class Xeryon:
             self.comm.sendCommand(str(tag)+"="+str(value))
         if "COM" in tag:
             self.setCOMPort(str(value))
-    
-    
+
     def sendMasterSettings(self, axis=False):
         """
          In multi-axis systems, commands without an axis specified are for the master.
@@ -254,11 +258,11 @@ class Xeryon:
         if axis is None:
             self.comm.sendCommand("SAVE=0")
         else:
-            self.comm.sendCommand(str(self.getAllAxis()[0].getLetter()) + ":SAVE=0")
+            self.comm.sendCommand(
+                str(self.getAllAxis()[0].getLetter()) + ":SAVE=0")
 
     def setCOMPort(self, com_port):
         self.getCommunication().setCOMPort(com_port)
-
 
     def findCOMPort(self):
         """
@@ -274,12 +278,6 @@ class Xeryon:
             if "04D8" in str(port.hwid):
                 self.setCOMPort(str(port.device))
                 break
-
-
-
-
-
-
 
 
 class Units(Enum):
@@ -317,19 +315,22 @@ class Axis:
     settings = None  # Stores all the settings from the settings file
     stage = None  # Specifies the type of stage used in this axis.
     units = Units.mm  # Specifies the units this axis is currently working in.
-    update_nb = 0  # This number increments each time an update is recieved from the controller.
-    was_valid_DPOS = False  # if True, the STEP command takes DPOS as the refrence. It's called "targeted_position=1/0" in the Microcontroller
+    # This number increments each time an update is recieved from the controller.
+    update_nb = 0
+    # if True, the STEP command takes DPOS as the refrence. It's called "targeted_position=1/0" in the Microcontroller
+    was_valid_DPOS = False
     def_poli_value = str(DEFAULT_POLI_VALUE)
 
-    isLogging = False  # Stores if this axis is currently "Logging": it's storing its axis_data.
+    # Stores if this axis is currently "Logging": it's storing its axis_data.
+    isLogging = False
     logs = {}  # This stores all the data. It's a dictionary of the form:
 
-    previous_epos = [0,0] # Two samples to calculate speed
-    previous_time = [0,0]
+    previous_epos = [0, 0]  # Two samples to calculate speed
+    previous_time = [0, 0]
 
     # { "EPOS": [...,...,...], "DPOS": [...,...,...], "STAT":[...,...,...],...}
 
-    def findIndex(self, forceWaiting = False, direction=0):
+    def findIndex(self, forceWaiting=False, direction=0):
         """
         :return: None
         This function finds the index, after finding the index it goes to the index position.
@@ -339,12 +340,14 @@ class Axis:
         self.was_valid_DPOS = False
 
         if DISABLE_WAITING is False or forceWaiting is True:
-            self.__waitForUpdate()  # Waits a couple of updates, so the EncoderValid flag is valid and doesn't lagg behind.
+            # Waits a couple of updates, so the EncoderValid flag is valid and doesn't lagg behind.
+            self.__waitForUpdate()
             self.__waitForUpdate()
             outputConsole("Searching index for axis " + str(self) + ".")
             while not self.isEncoderValid():  # While index not found, wait.
                 if not self.isSearchingIndex():  # Check if searching for index bit is true.
-                    outputConsole("Index is not found, but stopped searching for index.", True)
+                    outputConsole(
+                        "Index is not found, but stopped searching for index.", True)
                     break
                 time.sleep(0.2)
 
@@ -370,17 +373,22 @@ class Axis:
         Note: This function makes use of the sendCommand function, which is blocking the program until the position is reached.
         """
         unit = self.units  # Current units
-        if differentUnits is not None:  # If the value given are in different units than the current units:
-            unit = differentUnits  # Then specify the unit in differentUnits argument.
+        # If the value given are in different units than the current units:
+        if differentUnits is not None:
+            # Then specify the unit in differentUnits argument.
+            unit = differentUnits
 
-        DPOS = int(self.convertUnitsToEncoder(value, unit))  # Convert into encoder units.
+        # Convert into encoder units.
+        DPOS = int(self.convertUnitsToEncoder(value, unit))
         error = False
 
         self.__sendCommand("DPOS=" + str(DPOS))
-        self.was_valid_DPOS = True # And keep it True in order to avoid an accumulating error.
+        # And keep it True in order to avoid an accumulating error.
+        self.was_valid_DPOS = True
 
         # Block all futher processes until position is reached.
-        if DEBUG_MODE is False and DISABLE_WAITING is False:  # This check isn't nessecary in DEBUG mode or when DISABLE_WAITING is True
+        # This check isn't nessecary in DEBUG mode or when DISABLE_WAITING is True
+        if DEBUG_MODE is False and DISABLE_WAITING is False:
             # send_time = getActualTime()
             # distance = abs(int(DPOS) - int(self.getData("EPOS")))  # For calculating timeout time.
 
@@ -392,7 +400,8 @@ class Axis:
 
                 # Check if stage is at left end or right end. ==> out of range movement.
                 if self.isAtLeftEnd() or self.isAtRightEnd():
-                    outputConsole("DPOS is out or range. (1) " + getDposEposString(value, self.getEPOS(), unit), True)
+                    outputConsole("DPOS is out or range. (1) " +
+                                  getDposEposString(value, self.getEPOS(), unit), True)
                     error = True
                     break
 
@@ -410,24 +419,28 @@ class Axis:
                 #     outputConsole("Position not reached. (3) " + getDposEposString(value, self.getEPOS(), unit), True)
                 #     error = True
                 #     break
-                
+
                 if self.isEncoderError():
-                    outputConsole("Position not reached. (4). Encoder gave an error.", True)
+                    outputConsole(
+                        "Position not reached. (4). Encoder gave an error.", True)
                     error = True
                     break
-                    
+
                 if self.isErrorLimit():
-                    outputConsole("Position not reached. (5) ELIM Triggered.", True)
+                    outputConsole(
+                        "Position not reached. (5) ELIM Triggered.", True)
                     error = True
                     break
 
                 if self.isSafetyTimeoutTriggered():
-                    outputConsole("Position not reached. (6) TOU2 (Timeout 2) triggered.", True)
+                    outputConsole(
+                        "Position not reached. (6) TOU2 (Timeout 2) triggered.", True)
                     error = True
                     break
 
                 if self.isThermalProtection1() or self.isThermalProtection2():
-                    outputConsole("Position not reached. (7) amplifier error.", True)
+                    outputConsole(
+                        "Position not reached. (7) amplifier error.", True)
                     error = True
                     break
 
@@ -439,14 +452,12 @@ class Axis:
                 #     error = True
                 #     break
                 # Keep polling ==> if timeout is not done, the computer will poll too fast. The microcontroller can't follow.
-                
+
                 time.sleep(0.01)
 
-        ## eugene
+        # eugene
         # if outputToConsole and error is False and DISABLE_WAITING is False:  # Output new DPOS & EPOS if necessary
         #     outputConsole(getDposEposString(value, self.getEPOS(), unit))
-
-
 
     def setTRGS(self, value):
         """
@@ -512,17 +523,22 @@ class Axis:
         else:
             new_DPOS = int(self.getData("EPOS")) + step
 
-        if not self.stage.isLineair: # Rotating Stage
+        if not self.stage.isLineair:  # Rotating Stage
             # Below is the amount of encoder units in one revolution.
             # From -180 => +180
             # -180 *(val // 180 % 2) + (val % 180)
-            encoderUnitsPerRevolution = self.convertUnitsToEncoder(360, Units.deg)
-            new_DPOS = -encoderUnitsPerRevolution/2 * (new_DPOS // (encoderUnitsPerRevolution/2) % 2) + (new_DPOS % (encoderUnitsPerRevolution/2))
+            encoderUnitsPerRevolution = self.convertUnitsToEncoder(
+                360, Units.deg)
+            new_DPOS = -encoderUnitsPerRevolution/2 * \
+                (new_DPOS // (encoderUnitsPerRevolution/2) %
+                 2) + (new_DPOS % (encoderUnitsPerRevolution/2))
 
-        self.setDPOS(new_DPOS, Units.enc, False)  # This is used so position is checked in here.
+        # This is used so position is checked in here.
+        self.setDPOS(new_DPOS, Units.enc, False)
         outputConsole(str(new_DPOS))
         if DISABLE_WAITING is False:
-            self.__waitForUpdate()  # Waits a couple of updates, so the EPOS is valid and doesn't lagg behind.
+            # Waits a couple of updates, so the EPOS is valid and doesn't lagg behind.
+            self.__waitForUpdate()
             outputConsole("Stepped: " + str(self.convertEncoderUnitsToUnits(step, self.units)) + " " + str(
                 self.units) + " " + getDposEposString(self.getDPOS(), self.getEPOS(), self.units))
 
@@ -539,7 +555,7 @@ class Axis:
         """
         self.units = units
 
-    def startLogging(self, increase_poli = True):
+    def startLogging(self, increase_poli=True):
         """
         This function starts logging all data that the controller sends.
         It updates the POLI (Polling Interval) to get more data.
@@ -559,7 +575,8 @@ class Axis:
         logs = self.logs  # Store logs
         self.logs = {}  # Reset logs
 
-        self.setSetting("POLI", str(self.def_poli_value))  # Restore POLI back to default value.
+        # Restore POLI back to default value.
+        self.setSetting("POLI", str(self.def_poli_value))
         return logs
 
     def getFrequency(self):
@@ -786,7 +803,8 @@ class Axis:
             value = str(int(int(value) * self.stage.amplitudeMultiplier))
         elif "PHAC" in tag or "PHAS" in tag:
             value = str(int(int(value) * self.stage.phaseMultiplier))
-        elif "SSPD" in tag or "MSPD" in tag or "ISPD" in tag:  # In the settigns file, SSPD is in mm/s ==> gets translated to mu/s
+        # In the settigns file, SSPD is in mm/s ==> gets translated to mu/s
+        elif "SSPD" in tag or "MSPD" in tag or "ISPD" in tag:
             value = str(int(float(value) * self.stage.speedMultiplier))
         elif "LLIM" in tag or "RLIM" in tag or "HLIM" in tag:
             # These are given in mm/deg and need to be converted to encoder units
@@ -818,7 +836,7 @@ class Axis:
         self.axis_letter = axis_letter
         self.xeryon_object = xeryon_object
         self.stage = stage
-        self.axis_data = dict({"EPOS": 0, "DPOS": 0, "STAT": 0, "SSPD":0})
+        self.axis_data = dict({"EPOS": 0, "DPOS": 0, "STAT": 0, "SSPD": 0})
         self.settings = dict({})
         if self.stage.isLineair:
             self.units = Units.mm
@@ -858,7 +876,7 @@ class Axis:
         elif self.getSetting("PTOL") is not None:
             PTO2 = int(self.getSetting("PTOL"))
         else:
-            PTO2 = 100 #TODO
+            PTO2 = 100  # TODO
         EPOS = abs(int(self.getData("EPOS")))
 
         if DPOS - PTO2 <= EPOS <= DPOS + PTO2:
@@ -873,7 +891,8 @@ class Axis:
         """
         t = getActualTime()
         speed = int(self.getSetting("SSPD"))
-        timeout_t = (distance / speed * 1000)  # Convert seconds to milliseconds
+        # Convert seconds to milliseconds
+        timeout_t = (distance / speed * 1000)
         timeout_t *= 1.25  # 25% safety factor
 
         # For quick and tiny movements, the method above is not accurate.
@@ -896,8 +915,9 @@ class Axis:
         if "=" in data:
             tag = data.split("=")[0]
             val = data.split("=")[1].rstrip("\n\r").replace(" ", "")
-            
-            if tag not in NOT_SETTING_COMMANDS and "EPOS" not in tag and "DPOS" not in tag and not "FREQ" in tag:  # The received command is a setting that's requested.
+
+            # The received command is a setting that's requested.
+            if tag not in NOT_SETTING_COMMANDS and "EPOS" not in tag and "DPOS" not in tag and not "FREQ" in tag:
                 self.setSetting(tag, val)
             elif "FREQ" in tag:
                 if self.getSetting("FREQ") is not None and int(self.getSetting("FREQ")) != int(val):
@@ -913,28 +933,32 @@ class Axis:
 
                 if self.isThermalProtection1() or self.isThermalProtection2() or self.isErrorLimit() or self.isSafetyTimeoutTriggered():
                     if self.isErrorLimit():
-                        outputConsole("Error limit is reached (status bit 16). A reset is required now OR 'ENBL=1' should be send.", True)
+                        outputConsole(
+                            "Error limit is reached (status bit 16). A reset is required now OR 'ENBL=1' should be send.", True)
 
                     if self.isThermalProtection2() or self.isThermalProtection1():
-                        outputConsole("Thermal protection 1 or 2 is raised (status bit 2 or 3). A reset is required now OR 'ENBL=1' should be send.", True)
-                    
+                        outputConsole(
+                            "Thermal protection 1 or 2 is raised (status bit 2 or 3). A reset is required now OR 'ENBL=1' should be send.", True)
+
                     if self.isSafetyTimeoutTriggered():
-                        outputConsole("Saftety timeout (TOU2 timeout reached) triggered. A reset is required now OR 'ENBL=1' should be send.", True)
+                        outputConsole(
+                            "Saftety timeout (TOU2 timeout reached) triggered. A reset is required now OR 'ENBL=1' should be send.", True)
 
                     if AUTO_SEND_ENBL:
                         self.xeryon_object.setMasterSetting("ENBL", "1")
                         outputConsole("'ENBL=1' is automatically send.")
 
             if "EPOS" in tag:  # This uses "EPOS" as an indicator that a new round of data is coming in.
-     
-                self.previous_epos.remove(self.previous_epos[0]) # Remove first entry
-                self.previous_epos.append(int(self.axis_data["EPOS"])) # Add EPOS: this is like a FIFO list
+
+                self.previous_epos.remove(
+                    self.previous_epos[0])  # Remove first entry
+                # Add EPOS: this is like a FIFO list
+                self.previous_epos.append(int(self.axis_data["EPOS"]))
                 self.update_nb += 1  # This update_nb is for the function __waitForUpdate
 
-
-
             if self.isLogging:  # Log all received data if logging is enabled.
-                if tag not in ["SRNO", "XLS ", "XRTU", "XLA ", "XTRA", "SOFT", "SYNC"]:  # This data is useless.
+                # This data is useless.
+                if tag not in ["SRNO", "XLS ", "XRTU", "XLA ", "XTRA", "SOFT", "SYNC"]:
                     if self.logs.get(tag) is None:
                         self.logs[tag] = []
                     self.logs[tag].append(int(val))
@@ -950,10 +974,11 @@ class Axis:
                     t2 = self.previous_time[1]
                     if int(t2) < int(t1):
                         t2 += 2**16
-                
+
                     if len(self.previous_epos) >= 2:
-                        self.axis_data["SSPD"] = (self.previous_epos[1] - self.previous_epos[0])/(t2 - t1)
-                
+                        self.axis_data["SSPD"] = (
+                            self.previous_epos[1] - self.previous_epos[0])/(t2 - t1)
+
                 pass
 
     def getData(self, TAG):
@@ -974,8 +999,6 @@ class Axis:
         for tag in self.settings:
             self.__sendCommand(str(tag) + "=" + str(self.getSetting(tag)))
 
-
-    
     def saveSettings(self):
         """
         :return: None
@@ -983,7 +1006,7 @@ class Axis:
         """
         self.sendCommand("SAVE=0")
 
-    def convertUnitsToEncoder(self, value, units = None):
+    def convertUnitsToEncoder(self, value, units=None):
         """
         :param value: The value that needs to be converted into encoder units.
         :param units: The units the value is in.
@@ -1014,7 +1037,7 @@ class Axis:
             self.xeryon_object.stop()
             raise ("Unexpected unit")
 
-    def convertEncoderUnitsToUnits(self, value, units = None):
+    def convertEncoderUnitsToUnits(self, value, units=None):
         """
         :param value: The value (in encoder units) that needs to be converted.
         :param units:  The output unit.
@@ -1072,11 +1095,12 @@ class Axis:
 
         # The wait number needs to adjust to POLI.
         if self.getSetting("POLI") is not None:
-            wait_nb = wait_nb / int(self.def_poli_value) * int(self.getSetting("POLI"))
+            wait_nb = wait_nb / int(self.def_poli_value) * \
+                int(self.getSetting("POLI"))
 
         start_nb = int(self.update_nb)
         while (int(self.update_nb) - start_nb) < wait_nb:
-            time.sleep(0.01)  # Wait 10 ms
+            time.sleep(0.1)  # Wait 10 ms
 
     def __getStatBitAtIndex(self, bit_index):
         if self.getData("STAT") is not None:
@@ -1103,17 +1127,19 @@ class Communication:
         self.ser = None
         pass
 
-    def start(self, external_communication_thread = False):
+    def start(self, external_communication_thread=False):
         """
         :return: None
         This starts the serial communication on the specified COM port and baudrate in a seperate thread.
         """
         if self.COM_port is None:
             self.xeryon_object.findCOMPort()
-        if self.COM_port is None: #No com port found
-            raise Exception("No COM_port could automatically be found. You should provide it manually.")
+        if self.COM_port is None:  # No com port found
+            raise Exception(
+                "No COM_port could automatically be found. You should provide it manually.")
 
-        self.ser = serial.Serial(self.COM_port, self.baud, timeout=1, xonxoff=True)
+        self.ser = serial.Serial(
+            self.COM_port, self.baud, timeout=1, xonxoff=True)
         self.ser.flush()
         if external_communication_thread is False:
             self.thread = threading.Thread(target=self.__processData)
@@ -1121,7 +1147,6 @@ class Communication:
             self.thread.start()
         else:
             return self.__processData
-        
 
     def sendCommand(self, command):
         """
@@ -1135,8 +1160,7 @@ class Communication:
     def setCOMPort(self, com_port):
         self.COM_port = com_port
 
-
-    def __processData(self, external_while_loop = False):
+    def __processData(self, external_while_loop=False):
         """
         :return: None
         This function is ran in a seperate thread.
@@ -1149,7 +1173,7 @@ class Communication:
             It determines the correct axis and passes that data to that axis class.
         3. Thread stop command.
         """
-        
+
         while self.stop_thread is False:  # Infinte looe
             # dataToSend = list(self.readyToSend)  # Make a copy of this list
             # self.readyToSend = []  # Immediately remove the list
@@ -1162,13 +1186,14 @@ class Communication:
                 self.ser.write(str.encode(command.rstrip("\n\r") + "\n"))
 
             max_to_read = 10
-            while self.ser.in_waiting > 0 and max_to_read >0:  # While there is data to read
+            while self.ser.in_waiting > 0 and max_to_read > 0:  # While there is data to read
                 reading = self.ser.readline().decode()  # Read a single line
-         
+
                 if "=" in reading:  # Line contains a command.
 
-                    if len(reading.split(":")) == 2: #check if an axis is specified
-                        axis = self.xeryon_object.getAxis(reading.split(":")[0])
+                    if len(reading.split(":")) == 2:  # check if an axis is specified
+                        axis = self.xeryon_object.getAxis(
+                            reading.split(":")[0])
                         reading = reading.split(":")[1]
                         if axis is None:
                             axis = self.xeryon_object.axis_list[0]
@@ -1182,16 +1207,17 @@ class Communication:
                 max_to_read -= 1
             if external_while_loop is True:
                 return None
-  
 
     def closeCommunication(self):
         self.stop_thread = True
         time.sleep(0.1)
         self.ser.close()
 
+
 class Stage(Enum):
     XLS_312 = (True,  # isLineair (True/False)
-               "XLS1=312",  # Encoder Resolution Command (XLS =|XRTU=|XRTA=|XLA =)
+               # Encoder Resolution Command (XLS =|XRTU=|XRTA=|XLA =)
+               "XLS1=312",
                312.5,  # Encoder Resolution always in nanometer/microrad
                1000)  # Speed multiplier
 
@@ -1200,14 +1226,14 @@ class Stage(Enum):
                 1250,
                 1000)
     XLS_1250_OLD = (True,
-                "XLS1=1250",
-                1250,
-                1000)
+                    "XLS1=1250",
+                    1250,
+                    1000)
 
     XLS_1250_OLD_2 = (True,
-                "XLS1=1250",
-                312.5,
-                1000)
+                      "XLS1=1250",
+                      312.5,
+                      1000)
 
     XLS_78 = (True,
               "XLS1=78",
@@ -1224,34 +1250,35 @@ class Stage(Enum):
              1,
              1000)
     XLS_312_3N = (True,  # isLineair (True/False)
-               "XLS3=312",  # Encoder Resolution Command (XLS =|XRTU=|XRTA=|XLA =)
-               312.5,  # Encoder Resolution always in nanometer/microrad
-               1000) # Speed multiplier
+                  # Encoder Resolution Command (XLS =|XRTU=|XRTA=|XLA =)
+                  "XLS3=312",
+                  312.5,  # Encoder Resolution always in nanometer/microrad
+                  1000)  # Speed multiplier
 
     XLS_1250_3N = (True,
-                       "XLS3=1251",
-                       1250,
-                       1000)
+                   "XLS3=1251",
+                   1250,
+                   1000)
 
     XLS_1250_3N_OLD = (True,
-                "XLS3=1250",
-                312.5,
-                1000)
+                       "XLS3=1250",
+                       312.5,
+                       1000)
 
     XLS_78_3N = (True,
-              "XLS3=78",
-              78.125,
-              1000)
+                 "XLS3=78",
+                 78.125,
+                 1000)
 
     XLS_5_3N = (True,
-             "XLS3=5",
-             5,
-             1000)
+                "XLS3=5",
+                5,
+                1000)
 
     XLS_1_3N = (True,
-             "XLS3=1",
-             1,
-             1000)
+                "XLS3=1",
+                1,
+                1000)
 
     XLA_312 = (True,
                "XLA1=312",
@@ -1279,35 +1306,34 @@ class Stage(Enum):
                  1000)
 
     XLA_312_3N = (True,
-               "XLA3=312",
-               312.5,
-               1000)
+                  "XLA3=312",
+                  312.5,
+                  1000)
 
     XLA_1250_3N = (True,
-                "XLA3=1250",
-                1250,
-                1000)
+                   "XLA3=1250",
+                   1250,
+                   1000)
 
     XLA_78_3N = (True,
-              "XLA3=78",
-              78.125,
-              1000)
+                 "XLA3=78",
+                 78.125,
+                 1000)
 
     XLA_312_OLD = (True,
-               "XLA=312",
-               312.5,
-               1000)
+                   "XLA=312",
+                   312.5,
+                   1000)
 
     XLA_1250_OLD = (True,
-                "XLA=1250",
-                1250,
-                1000)
+                    "XLA=1250",
+                    1250,
+                    1000)
 
     XLA_78_OLD = (True,
-              "XLA=78",
-              78.125,
-              1000)
-
+                  "XLA=78",
+                  78.125,
+                  1000)
 
     XRTA = (False,
             "XRTA=109",  # ?
@@ -1317,84 +1343,83 @@ class Stage(Enum):
     # TODO: CHECK RES
     # XRTU's 1N VERSION
     XRTU_40_3 = (False,
-                   "XRT1=2",
-                 (2 * math.pi * 1e6) / 86400 ,
-                   100)
+                 "XRT1=2",
+                 (2 * math.pi * 1e6) / 86400,
+                 100)
 
     XRTU_40_19 = (False,
-                 "XRT1=18",
-                 (2 * math.pi * 1e6) / 86400 ,
-                 100)
+                  "XRT1=18",
+                  (2 * math.pi * 1e6) / 86400,
+                  100)
     XRTU_40_49 = (False,
-                 "XRT1=47",
-                 (2 * math.pi * 1e6) / 86400 ,
-                 100)
+                  "XRT1=47",
+                  (2 * math.pi * 1e6) / 86400,
+                  100)
 
     XRTU_40_73 = (False,
-                 "XRT1=73",
-                  (2 * math.pi * 1e6) / 86400, #CORRECT ???
-                 100)
+                  "XRT1=73",
+                  (2 * math.pi * 1e6) / 86400,  # CORRECT ???
+                  100)
 
     XRTU_30_3 = (False,
                  "XRT1=3",
-                  (2 * math.pi * 1e6) / 1843200,
+                 (2 * math.pi * 1e6) / 1843200,
                  100)
 
     XRTU_30_19 = (False,
-                 "XRT1=19",
+                  "XRT1=19",
                   (2 * math.pi * 1e6) / 360000,
-                 100)
+                  100)
 
     XRTU_30_49 = (False,
-                 "XRT1=49",
+                  "XRT1=49",
                   (2 * math.pi * 1e6) / 144000,
-                 100)
+                  100)
 
     XRTU_30_109 = (False,
-                 "XRT1=109",
-                  (2 * math.pi * 1e6) / 57600,
-                 100)
-
+                   "XRT1=109",
+                   (2 * math.pi * 1e6) / 57600,
+                   100)
 
     XRTU_60_3 = (False,
                  "XRT3=3",
-                  (2 * math.pi * 1e6) /2073600,
+                 (2 * math.pi * 1e6) / 2073600,
                  100)
     XRTU_60_19 = (False,
-                 "XRT3=19",
-                  (2 * math.pi * 1e6) /324000,
-                 100)
+                  "XRT3=19",
+                  (2 * math.pi * 1e6) / 324000,
+                  100)
     XRTU_60_49 = (False,
-                 "XRT3=49",
-                  (2 * math.pi * 1e6) /129600,
-                 100)
+                  "XRT3=49",
+                  (2 * math.pi * 1e6) / 129600,
+                  100)
     XRTU_60_109 = (False,
-                 "XRT3=109",
-                  (2 * math.pi * 1e6) /64800,
-                 100)
-
+                   "XRT3=109",
+                   (2 * math.pi * 1e6) / 64800,
+                   100)
 
     # For backwards compatibility
 
     XRTU_30_109_OLD = (False,
-                   "XRTU=109",
-                   (2 * math.pi * 1e6) / 57600,
-                   100)
+                       "XRTU=109",
+                       (2 * math.pi * 1e6) / 57600,
+                       100)
     XRTU_40_73_OLD = (False,
-                  "XRTU=73",
-                  (2 * math.pi * 1e6) / 86400,
-                  100)
+                      "XRTU=73",
+                      (2 * math.pi * 1e6) / 86400,
+                      100)
     XRTU_40_3_OLD = (False,
-                 "XRTU=3",  # ?
-                 (2 * math.pi * 1e6) / 1800000,
-                 100)
+                     "XRTU=3",  # ?
+                     (2 * math.pi * 1e6) / 1800000,
+                     100)
 
     def __init__(self, isLineair, encoderResolutionCommand, encoderResolution,
                  speedMultiplier):
 
         self.isLineair = isLineair
         self.encoderResolutionCommand = encoderResolutionCommand
-        self.encoderResolution = encoderResolution  # ALTIJD IN nm / nanorad !!! ==> Verschillend met windows interface.
+        # ALTIJD IN nm / nanorad !!! ==> Verschillend met windows interface.
+        self.encoderResolution = encoderResolution
         self.speedMultiplier = speedMultiplier  # used.
         self.amplitudeMultiplier = AMPLITUDE_MULTIPLIER
         self.phaseMultiplier = PHASE_MULTIPLIER
@@ -1433,4 +1458,3 @@ def outputConsole(message, error=False, force=True):
             print("\033[91m" + "ERROR: " + message + "\033[0m")
         else:
             print(message)
-
