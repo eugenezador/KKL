@@ -327,7 +327,7 @@ class MainWindow(QtWidgets.QMainWindow):
     x = []
     y = []
     ###########
-    color_array = ['orange', 'darkRed', 'darkCyan', 'g',
+    color_array = ['green', 'orange', 'darkRed', 'darkCyan',
                    'y', 'darkMagenta', 'b', 'r', 'c', 'm', 'black']
 
     color_index = -1
@@ -409,11 +409,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.x.clear()
                 self.y.clear()
 
-                if self.color_index < (len(self.color_array) - 1):
-                    self.color_index += 1
+                if self.several_plots_enable_cbox.isChecked():
+                    if self.color_index < (len(self.color_array) - 1):
+                        self.color_index += 1
+                    else:
+                        self.color_index = 0
+                    print("color index : " + str(self.color_index))
                 else:
                     self.color_index = 0
-                print("color index : " + str(self.color_index))
+                    self.graphWidget.clear()
 
                 self.rigol_thread.start()
                 self.sent_start_xeryon_angle.emit(
@@ -439,11 +443,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.x.append(float(wave_number))
         self.y.append(float(avarage_integral))
 
-        # self.data_line.addData(self.x, self.y)
+        if self.several_plots_enable_cbox.isChecked():
+            pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
+                           style=QtCore.Qt.SolidLine)
+            self.graphWidget.plot(self.x, self.y, pen=pen)
+        else:
+            pen = pg.mkPen(color=(0, 255, 0), width=8,
+                           style=QtCore.Qt.SolidLine)
+            self.data_line = self.graphWidget.plot(
+                self.x, self.y, name="my plot",  pen=pen)
+            self.data_line.setData(self.x, self.y)
 
-        pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
-                       style=QtCore.Qt.SolidLine)
-        self.graphWidget.plot(self.x, self.y, pen=pen)
+    def clear_plot(self):
+        self.graphWidget.clear()
 
 
 ###############  Termal ########
@@ -495,12 +507,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.graphWidget.getAxis("bottom").setTickFont(font)
         self.graphWidget.getAxis("left").setTickFont(font)
 
-        # self.color_char = "r"
-        # self.pen = pg.mkPen(color=(0, self.color_const, 0), width=8,
-        #                     style=QtCore.Qt.SolidLine)
-
-        # self.graphWidget.plot(self.x, self.y, name="my plot",  pen=self.pen)
-
         ##############
         self.start_button = QPushButton(
             "СТАРТ", clicked=self.start_button_clicked)
@@ -514,6 +520,17 @@ class MainWindow(QtWidgets.QMainWindow):
         layout = QVBoxLayout()
         layout.addLayout(device_list_layout)
         layout.addWidget(self.graphWidget)
+
+        # NEW
+        new_layout = QHBoxLayout()
+
+        self.clear_plot_button = QPushButton(
+            "Очистить график",  clicked=self.clear_plot)
+        self.several_plots_enable_cbox = QCheckBox(
+            "Отображать прошлые спектры")
+        new_layout.addWidget(self.several_plots_enable_cbox)
+        new_layout.addWidget(self.clear_plot_button)
+        layout.addLayout(new_layout)
 
         # START
         start_layout = QHBoxLayout()
