@@ -325,7 +325,6 @@ class MainWindow(QtWidgets.QMainWindow):
     turn_off_termal = Signal()
 
     #########
-    cur_ang = 0
     x = []
     y = []
     ###########
