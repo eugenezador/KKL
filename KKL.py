@@ -328,7 +328,7 @@ class MainWindow(QtWidgets.QMainWindow):
     y = []
     ###########
     color_array = ['green', 'orange', 'darkRed', 'darkCyan',
-                   'y', 'darkMagenta', 'b', 'r', 'c', 'm', 'black']
+                   'yellow', 'darkMagenta', 'blue', 'red', 'cyan', 'magenta', 'black']
 
     color_index = -1
 
@@ -431,7 +431,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.start_button.setEnabled(True)
 
     def save_data_to_file(self):
-        filename = "user_spectr_" + time.strftime("%H:%M:%S-%d.%m.%Y") + ".txt"
+        filename = "user_spectr_" + \
+            time.strftime("%H:%M:%S-%d.%m.%Y") + \
+            '_' + str(self.color_array[self.color_index]) + ".txt"
         file = open(filename, "w+")
         for index in range(len(self.x)):
             st = str(float(self.x[index])) + \
@@ -459,7 +461,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 ###############  Termal ########
-
 
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
@@ -561,7 +562,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         set_ang_button = QPushButton("Установить угол")
         set_ang_button.clicked.connect(self.set_ang_button_clicked)
-        save_to_file_button = QPushButton("Сохранить данные в файл")
+        save_to_file_button = QPushButton(
+            "Сохранить данные последнего спектра в файл")
         save_to_file_button.clicked.connect(self.save_data_to_file)
         self.set_ang_line_edit = QLineEdit("101.1")
         self.set_ang_label = QLabel("Интенсивность:")

@@ -1103,7 +1103,9 @@ class Axis:
             time.sleep(0.1)  # Wait 10 ms
 
     def __getStatBitAtIndex(self, bit_index):
-        if self.getData("STAT") is not None:
+        # if self.getData("STAT") is not None:
+        # eugene
+        if self.getData("STAT") != '' and str(self.getData("STAT")).isnumeric():
             bits = bin(int(self.getData("STAT"))).replace("0b", "")[::-1]
             # [::-1 mirrors the string so the status bit numbering is the same.
             if len(bits) >= bit_index + 1:
