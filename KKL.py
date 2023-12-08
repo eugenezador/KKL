@@ -28,14 +28,38 @@ from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slo
 import numpy as np
 
 
-class Rigol_Worker(QObject):
+class Xeryon_Worker():
+
+    is_Xeryon_exist = False
+
+    # def __del__(self):
+    #     if self.is_Xeryon_exist:
+    #         self.axisX.reset()
+    #         self.controller.stop()
+
+    # def __init__(self):
+    #     super(Rigol_Worker, self).__init__()
+
+    #     self.init_Xeryon("/dev/ttyACM0")
+
+    def init_Xeryon(self, device_name):
+        if Path(device_name).exists():
+            self.controller = Xeryon(device_name, 115200)
+            self.axisX = self.controller.addAxis(Stage.XRTU_30_109, "X")
+            self.controller.start()
+            self.axisX.findIndex()
+            self.axisX.setUnits(Units.deg)
+            self.is_Xeryon_exist = True
+
+
+class Rigol_Worker(QObject, Xeryon_Worker):
     sent_avarage_integral_value = Signal(float, float)
 
     sent_intergal_value = Signal(float)
 
     is_working = False
     is_Rigol_exist = False
-    is_Xeryon_exist = False
+    # is_Xeryon_exist = False
 
     angles_indx = 0
     wave_indx = 0
@@ -63,14 +87,14 @@ class Rigol_Worker(QObject):
             self.osc[2].set_vertical_scale_V(0.05)
             self.is_Rigol_exist = True
 
-    def init_Xeryon(self, device_name):
-        if Path(device_name).exists():
-            self.controller = Xeryon(device_name, 115200)
-            self.axisX = self.controller.addAxis(Stage.XRTU_30_109, "X")
-            self.controller.start()
-            self.axisX.findIndex()
-            self.axisX.setUnits(Units.deg)
-            self.is_Xeryon_exist = True
+    # def init_Xeryon(self, device_name):
+    #     if Path(device_name).exists():
+    #         self.controller = Xeryon(device_name, 115200)
+    #         self.axisX = self.controller.addAxis(Stage.XRTU_30_109, "X")
+    #         self.controller.start()
+    #         self.axisX.findIndex()
+    #         self.axisX.setUnits(Units.deg)
+    #         self.is_Xeryon_exist = True
 
     def get_start_angle_value(self, value):
         self.curent_ang = round(float(value), 2)
@@ -188,14 +212,15 @@ class Rigol_Worker(QObject):
         res = 0
         avarage_counter = 0
         start = time.time()
-        for i in range(0, 10):
-            integral = float(self.intergal_per_area())
-            print(integral)
-            avarage_counter += 1
-            if integral > 0.5 and integral < 6:
-                res += float(integral)
+        if self.is_Rigol_exist:
+            for i in range(0, 10):
+                integral = float(self.intergal_per_area())
+                print(integral)
+                avarage_counter += 1
+                if integral > 0.5 and integral < 6:
+                    res += float(integral)
+            res = float(res) / avarage_counter
 
-        res = float(res) / avarage_counter
         print("res: " + str(res))
         end = time.time()
         print("Calc time = " + str(end - start))
@@ -461,6 +486,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 ###############  Termal ########
+
 
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
