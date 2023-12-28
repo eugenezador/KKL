@@ -1,1 +1,9 @@
 pyserial
+# pyinstaller KKL.py --onefile
+
+# append 
+# QT_QPA_PLATFORM=wayland
+# to
+# sudo nano /etc/environment
+
+# and txt to dist folder
