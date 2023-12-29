@@ -6,4 +6,7 @@ pyserial
 # to
 # sudo nano /etc/environment
 
+# install before build
+# sudo apt install software-properties-qt
+
 # and txt to dist folder
