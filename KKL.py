@@ -5,7 +5,7 @@ import rigol2000a
 import serial
 import time
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QMessageBox, QPushButton, QVBoxLayout,  QCheckBox, QHBoxLayout, QLabel, QFrame, QLineEdit, QComboBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QMessageBox, QPushButton, QVBoxLayout,  QCheckBox, QHBoxLayout, QLabel, QFrame, QLineEdit, QComboBox, QPlainTextEdit
 from PyQt5 import QtWidgets, QtCore
 
 from PyQt5.QtGui import QFont
@@ -46,6 +46,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
     sent_avarage_integral_value = Signal(float, float)
 
     sent_intergal_value = Signal(float)
+    sent_current_angle_value = Signal(float)
 
     is_working = False
     is_Rigol_exist = False
@@ -217,6 +218,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
     def step_motor(self):
         if self.is_Rigol_exist:
             self.axisX.setDPOS(self.angles[self.angles_indx])
+            self.sent_current_angle_value.emit(self.angles[self.angles_indx])
             print(self.angles[self.angles_indx])
             self.angles_indx += 1
             self.wave_indx += 1
@@ -361,6 +363,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.rigol.sent_avarage_integral_value.connect(self.update_plot)
 
+        self.rigol.sent_current_angle_value.connect(self.update_current_angle)
+        
         self.rigol.moveToThread(self.rigol_thread)
 
         ########### TERMAL WORKER ############
@@ -448,6 +452,7 @@ class MainWindow(QtWidgets.QMainWindow):
         file.close()
 
     def update_plot(self, avarage_integral, wave_number):
+        self.update_logging(avarage_integral)
         self.x.append(float(wave_number))
         self.y.append(float(avarage_integral))
 
@@ -461,6 +466,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.data_line = self.graphWidget.plot(
                 self.x, self.y, name="my plot",  pen=pen)
             self.data_line.setData(self.x, self.y)
+
+    
+    current_angle_value = 0
+
+    def update_logging(self, avarage_integral):
+        self.logging.appendPlainText(str(self.current_angle_value) + " : " + str(avarage_integral))
+
+    def update_current_angle(self, value):
+        self.current_angle_value = value
 
     def clear_plot(self):
         self.graphWidget.clear()
@@ -591,6 +605,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.device_choice.addItem("RIGOL Oscilloscope")
         self.device_choice.addItem("Ophir VEGA")
         layout.addWidget(self.device_choice)
+
+        # Logging
+        self.logging = QPlainTextEdit(self)
+        layout.addWidget(self.logging)
 
         widget = QWidget()
         widget.setLayout(layout)
