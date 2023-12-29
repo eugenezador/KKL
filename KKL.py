@@ -1,5 +1,5 @@
 from Xeryon import *
-from pylablib.devices import Ophir
+# from pylablib.devices import Ophir
 import rigol2000a
 
 import serial
