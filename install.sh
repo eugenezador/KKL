@@ -18,3 +18,9 @@ pip3 install pyqtgraph
 sudo apt update
 sudo apt install qtbase5-dev qt5-qmake
 sudo pip3 install pyinstaller
+
+pyinstaller KKL.py --onefile
+
+cp angles.txt ./dist
+cp settings_default.txt ./dist
+cp wave_numbers.txt ./dist
