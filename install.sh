@@ -15,5 +15,6 @@ pip3 install numpy
 pip3 install tqdm
 pip3 install PyQt5
 pip3 install pyqtgraph
-sudo apt-get update
-sudo apt-get install pt5-default
+sudo apt update
+sudo apt install qtbase5-dev qt5-qmake
+sudo pip3 install pyinstaller
