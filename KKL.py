@@ -8,7 +8,7 @@ import time
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QMessageBox, QPushButton, QVBoxLayout,  QCheckBox, QHBoxLayout, QLabel, QFrame, QLineEdit, QComboBox
 from PyQt5 import QtWidgets, QtCore
 
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIcon
 
 from pyqtgraph import PlotWidget, plot
 from pyqtgraph.Qt import QtGui
@@ -75,7 +75,6 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.osc[1].set_vertical_scale_V(0.05)
             self.osc[2].set_vertical_scale_V(0.05)
             self.is_Rigol_exist = True
-
 
     def get_start_angle_value(self, value):
         self.curent_ang = round(float(value), 2)
@@ -490,6 +489,8 @@ class MainWindow(QtWidgets.QMainWindow):
 ###########################
 
     def init_widgets(self):
+        # self.setWindowIcon(
+        #     QtGui.QIcon('KKL.png'))
         self.Xeryon_cbox = QCheckBox("Двигатель")
         self.Termal_cbox = QCheckBox("Охлаждение лазера")
         self.Rigol_cbox = QCheckBox("Осцилограф")

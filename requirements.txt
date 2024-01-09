@@ -1,5 +1,5 @@
 pyserial
-# pyinstaller KKL.py --onefile
+# pyinstaller KKL.py --onefile --distpath ../
 
 # append 
 # QT_QPA_PLATFORM=wayland
