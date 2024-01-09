@@ -13,3 +13,4 @@ sudo apt install python3-pip
 pip3 install pyserial
 pip3 install numpy
 pip3 install tqdm
+pip3 install PyQt5
