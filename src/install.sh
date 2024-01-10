@@ -17,5 +17,5 @@ pip3 install PyQt5
 pip3 install pyqtgraph
 sudo apt update
 sudo apt install qtbase5-dev qt5-qmake
-sudo apt install sofrware-properties-qt
+# sudo apt install sofrware-properties-qt
 sudo pip3 install pyinstaller
