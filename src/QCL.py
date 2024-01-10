@@ -45,6 +45,8 @@ class Xeryon_Worker():
 class Rigol_Worker(QObject, Xeryon_Worker):
     sent_avarage_integral_value = Signal(float, float)
 
+    sent_log_info = Signal(float, float)
+
     sent_intergal_value = Signal(float)
 
     is_working = False
@@ -217,6 +219,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
         if self.is_Rigol_exist:
             self.axisX.setDPOS(self.angles[self.angles_indx])
             print(self.angles[self.angles_indx])
+            self.current_angle = self.angles[self.angles_indx]
             self.angles_indx += 1
             self.wave_indx += 1
 
@@ -226,8 +229,12 @@ class Rigol_Worker(QObject, Xeryon_Worker):
         while self.is_working:
             time.sleep(0.1)
             self.step_motor()
+            current_arg_integral_value = self.avarage_integral_calc()
             self.sent_avarage_integral_value.emit(
-                self.avarage_integral_calc(), int(self.wave_numbers[self.wave_indx]))
+                current_arg_integral_value, int(self.wave_numbers[self.wave_indx]))
+
+            self.sent_log_info.emit(
+                round(float(self.current_angle), 2), current_arg_integral_value)
 
 
 class Termal_Worker(QObject):
@@ -425,6 +432,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # start the thread
         self.termal_thread.start()
 
+    def print_log_info(self, angle_value, integral_value):
+        
+        
+
     def init_Xeryon(self, device_name):
         if Path(device_name).exists():
             self.Xeryon_cbox.setChecked(True)
@@ -505,7 +516,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 ###############  Termal ########
 
-
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
         self.termal_start_work.emit()
@@ -527,8 +537,9 @@ class MainWindow(QtWidgets.QMainWindow):
 ###########################
 
     def init_widgets(self):
-        # self.setWindowIcon(
-        #     QtGui.QIcon('KKL.png'))
+        self.setWindowIcon(
+            QtGui.QIcon('KKL.png'))
+        # self.setWindowIcon(QtGui.QIcon("icon.png"))
         self.Xeryon_cbox = QCheckBox("Двигатель")
         self.Termal_cbox = QCheckBox("Охлаждение лазера")
         self.Rigol_cbox = QCheckBox("Осцилограф")
