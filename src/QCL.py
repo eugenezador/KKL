@@ -346,6 +346,50 @@ class MainWindow(QtWidgets.QMainWindow):
         self.init_widgets()
 
         ################  RIGOL WORKER  #################
+        self.init_Rigol_Worker()
+        # self.rigol = Rigol_Worker()
+        # self.rigol_thread = QThread()
+
+        # self.move_Xeryon.connect(self.rigol.move_motor)
+
+        # self.rigol.sent_intergal_value.connect(
+        #     self.print_intergal_value)
+
+        # self.start_rigol_xeryon_work.connect(self.rigol.do_work)
+
+        # self.sent_start_xeryon_angle.connect(self.rigol.get_start_angle_value)
+
+        # self.rigol.sent_avarage_integral_value.connect(self.update_plot)
+
+        # self.rigol.moveToThread(self.rigol_thread)
+
+        ########### TERMAL WORKER ############
+        self.init_Termal_Worker()
+        # self.termal = Termal_Worker()
+        # self.termal_thread = QThread()
+
+        # self.turn_on_termal.connect(self.termal.termal_turn_on)
+
+        # self.turn_off_termal.connect(self.termal.termal_turn_off)
+
+        # self.termal.sent_current_temperature_value.connect(
+        #     self.print_current_temperature)
+
+        # self.termal_start_work.connect(self.termal.do_work)
+
+        # # move worker to the worker thread
+        # self.termal.moveToThread(self.termal_thread)
+
+        # # start the thread
+        # self.termal_thread.start()
+        ############## INIT DEVICES ################
+        self.init_Xeryon("/dev/ttyACM0")
+        self.init_Rigol()
+        self.init_termal()
+
+        self.termal_on_button_clicked()
+
+    def init_Rigol_Worker(self):
         self.rigol = Rigol_Worker()
         self.rigol_thread = QThread()
 
@@ -362,7 +406,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.rigol.moveToThread(self.rigol_thread)
 
-        ########### TERMAL WORKER ############
+    def init_Termal_Worker(self):
         self.termal = Termal_Worker()
         self.termal_thread = QThread()
 
@@ -380,12 +424,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # start the thread
         self.termal_thread.start()
-        ############## INIT DEVICES ################
-        self.init_Xeryon("/dev/ttyACM0")
-        self.init_Rigol()
-        self.init_termal()
-
-        self.termal_on_button_clicked()
 
     def init_Xeryon(self, device_name):
         if Path(device_name).exists():
