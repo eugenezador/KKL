@@ -1,4 +1,4 @@
-APP_DIR=./QCL
+APP_DIR=../QCL
 
 pyinstaller src/QCL.py --onefile --distpath $APP_DIR
 

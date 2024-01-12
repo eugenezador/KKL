@@ -1,5 +1,5 @@
 
-all: clean build
+all: rebuild build
 
 install:
 	src/install.sh
@@ -9,12 +9,10 @@ build:
 
 rebuild:
 	rm -rf build/
-	rm -rf QCL/
 	rm -f QCL.spec
 	rm -f src/QCL.spec
 
 clean:
 	rm -rf build/
-	rm -rf QCY/
 	rm -f QCL.spec
 	rm -f src/QCL.spec
