@@ -47,7 +47,9 @@ class Xeryon_Worker():
 class Rigol_Worker(QObject, Xeryon_Worker):
     sent_avarage_integral_value = Signal(float, float, float)
 
-    sent_intergal_value = Signal(float, float, float)
+    sent_intergal_value = Signal(float, float)
+
+    sent_logging_info = Signal(str)
 
     is_working = False
     is_Rigol_exist = False
@@ -195,19 +197,21 @@ class Rigol_Worker(QObject, Xeryon_Worker):
     def avarage_integral_calc(self):
         res = 0
         avarage_counter = 0
-        start = time.time()
+        # start = time.time()
         if self.is_Rigol_exist:
             for i in range(0, 10):
                 integral = float(self.intergal_per_area())
-                print(integral)
+                self.sent_logging_info.emit(str(integral))
+                # print(integral)
                 avarage_counter += 1
                 if integral > 0.5 and integral < 6:
                     res += float(integral)
             res = float(res) / avarage_counter
 
-        print("res: " + str(res))
-        end = time.time()
-        print("Calc time = " + str(end - start))
+        # print("intensty: " + str(res))
+        self.sent_logging_info.emit("intensty: " + str(res))
+        # end = time.time()
+        # print("Calc time = " + str(end - start))
 
         return float(res)
 
@@ -217,11 +221,12 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.sent_intergal_value.emit(
                 round(float(value), 2), round(self.avarage_integral_calc(), 2))
 
-
     def step_motor(self):
         if self.is_Rigol_exist:
             self.axisX.setDPOS(self.angles[self.angles_indx])
-            print(self.angles[self.angles_indx])
+            # print(self.angles[self.angles_indx])
+            self.sent_logging_info(
+                "current stepper angle: " + self.angles[self.angles_indx])
             self.current_angle = self.angles[self.angles_indx]
             self.angles_indx += 1
             self.wave_indx += 1
@@ -238,6 +243,8 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
 class Termal_Worker(QObject):
     sent_current_temperature_value = Signal(float)
+
+    sent_logging_info = Signal(str)
 
     is_working = False
 
@@ -287,9 +294,11 @@ class Termal_Worker(QObject):
                     time.sleep(0.2)
                     while True:
                         response = self.ser.readline().decode('utf-8', errors='ignore')
-                        print("----read data: " + response)
+                        self.sent_logging_info.emit(
+                            "read termal data: " + response)
+                        # print("----read data: " + response)
                         if response == '':
-                            print("finish reading")
+                            # print("finish reading")
                             break
 
                         if command == "gist" + '\r':
@@ -304,15 +313,18 @@ class Termal_Worker(QObject):
                             self.is_Termal_turn_On = False
 
                         if response == '01':
-                            print("01 ERROR !!!")
+                            self.sent_logging_info.emit("Termal 01 ERROR !!!")
+                            # print("01 ERROR !!!")
                             break
 
                     self.ser.close()
 
                 except Exception as e:
-                    print("error communicating...: " + str(e))
+                    self.sent_logging_info.emit(
+                        "error communicating...: " + str(e))
+                    # print("error communicating...: " + str(e))
             else:
-                print("cannot open serial port ")
+                self.sent_logging_info.emit("cannot open serial port !")
 
     @Slot()
     def do_work(self):
@@ -350,6 +362,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
 
+        os.system("chmod 777 /dev/usbtmc*")
+
         self.init_widgets()
 
         ################  RIGOL WORKER  #################
@@ -362,6 +376,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.init_Xeryon("/dev/ttyACM0")
         self.init_Rigol()
         self.init_termal()
+        self.Xeryon_cbox.setCheckable(False)
+        self.Rigol_cbox.setEnabled(False)
+        self.Termal_cbox.setEnabled(False)
 
         self.termal_on_button_clicked()
 
@@ -379,6 +396,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sent_start_xeryon_angle.connect(self.rigol.get_start_angle_value)
 
         self.rigol.sent_avarage_integral_value.connect(self.update_plot)
+        self.rigol.sent_logging_info.connect(self.print_logging_info)
 
         self.rigol.moveToThread(self.rigol_thread)
 
@@ -401,9 +419,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # start the thread
         self.termal_thread.start()
 
-    def print_log_info(self, angle_value, wave_number, intensity):
-        self.logging.appendPlainText(
-            str(angle_value) + ":" + str(wave_number)+ " : " + "{:.2e}".format(intensity))
+    def print_logging_info(self, log_str):
+        self.logging.appendPlainText(log_str)
 
     def init_Xeryon(self, device_name):
         if Path(device_name).exists():
@@ -420,8 +437,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def set_ang_button_clicked(self):
         self.move_Xeryon.emit(self.set_ang_line_edit.text())
 
-    def print_intergal_value(self, angle_value, wave_number, intensity):
-        self.print_log_info(angle_value, wave_number, intensity)
+    def print_intergal_value(self, angle, intensity):
         self.intensity_value.setText(str(intensity))
 
     def start_button_clicked(self):
@@ -431,6 +447,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 time.sleep(0.1)
             else:
                 self.angle.clear()
+                self.logging.clear()
                 self.x.clear()
                 self.y.clear()
 
@@ -439,7 +456,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.color_index += 1
                     else:
                         self.color_index = 0
-                    print("color index : " + str(self.color_index))
+                    # print("color index : " + str(self.color_index))
                 else:
                     self.color_index = 0
                     self.graphWidget.clear()
@@ -468,8 +485,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 f.write(st)
             f.close()
 
-    def update_plot(self, angle_value, wave_number, avarage_integral):
-        self.angle.append(float(angle_value))
+    def update_plot(self, angle, wave_number, avarage_integral):
         self.x.append(float(wave_number))
         self.y.append(float(avarage_integral))
 
@@ -490,7 +506,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 ###############  Termal ########
-
 
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
@@ -542,9 +557,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Rigol_cbox = QCheckBox("Осцилограф")
 
         device_list_layout = QHBoxLayout()
-        device_list_layout.addWidget(self.Xeryon_cbox)
-        device_list_layout.addWidget(self.Termal_cbox)
-        device_list_layout.addWidget(self.Rigol_cbox)
+        device_list_layout.addWidget(
+            self.Xeryon_cbox, alignment=QtCore.Qt.AlignCenter)
+        device_list_layout.addWidget(
+            self.Termal_cbox, alignment=QtCore.Qt.AlignCenter)
+        device_list_layout.addWidget(
+            self.Rigol_cbox, alignment=QtCore.Qt.AlignCenter)
 
         # Device choice
         self.device_choice = QComboBox(self)
@@ -556,9 +574,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.clear_plot_button = QPushButton(
             "Очистить график",  clicked=self.clear_plot)
-        self.clear_plot_button.setGeometry(40, 40, 40, 40)
+        self.clear_plot_button.setMaximumSize(200, 40)
         self.several_plots_enable_cbox = QCheckBox(
             "Отображать прошлые спектры")
+        self.several_plots_enable_cbox.setMaximumSize(240, 40)
         new_layout.addWidget(self.several_plots_enable_cbox)
         new_layout.addWidget(self.clear_plot_button)
 
@@ -575,36 +594,72 @@ class MainWindow(QtWidgets.QMainWindow):
 
         start_angle_value_layout = QHBoxLayout()
         self.start_label = QLabel("Начальный угол: ")
+        self.start_label.setMaximumSize(200, 40)
         self.start_line_edit = QLineEdit("110")
-        self.start_line_edit.setGeometry(40, 40, 40, 40)
-        start_angle_value_layout.addWidget(self.start_label)
-        start_angle_value_layout.addWidget(self.start_line_edit)
+        self.start_line_edit.setMaximumSize(80, 40)
+        start_angle_value_layout.addWidget(
+            self.start_label, alignment=QtCore.Qt.AlignCenter)
+        start_angle_value_layout.addWidget(
+            self.start_line_edit, alignment=QtCore.Qt.AlignCenter)
 
         # STOP
         stop_angle_value_layout = QHBoxLayout()
         self.stop_label = QLabel("Конечный угол: ")
+        self.stop_label.setMaximumSize(300, 40)
         self.stop_line_edit = QLineEdit("93.75")
-        self.stop_line_edit.setGeometry(40, 40, 40, 40)
-        stop_angle_value_layout.addWidget(self.stop_label)
-        stop_angle_value_layout.addWidget(self.stop_line_edit)
+        self.stop_line_edit.setMaximumSize(80, 40)
+        stop_angle_value_layout.addWidget(
+            self.stop_label, alignment=QtCore.Qt.AlignCenter)
+        stop_angle_value_layout.addWidget(
+            self.stop_line_edit, alignment=QtCore.Qt.AlignCenter)
 
         # START STOP BUTOONS
         start_stop_buttons_layout = QHBoxLayout()
         self.start_button = QPushButton(
             "СТАРТ", clicked=self.start_button_clicked)
+        self.start_button.setMaximumSize(100, 40)
+        self.start_button.setStyleSheet("QPushButton"
+                                        "{"
+                                        "background-color : green;"
+                                        "}"
+                                        "QPushButton"
+                                        "{"
+                                        "color : white;"
+                                        "}"
+                                        "QPushButton::pressed"
+                                        "{"
+                                        "background-color : grey;"
+                                        "}"
+                                        )
 
         self.stop_button = QPushButton(
             "СТОП",  clicked=self.stop_button_clicked)
+        self.stop_button.setMaximumSize(100, 40)
+        self.stop_button.setStyleSheet("QPushButton"
+                                       "{"
+                                       "background-color : red;"
+                                       "}"
+                                       "QPushButton"
+                                       "{"
+                                       "color : white;"
+                                       "}"
+                                       "QPushButton::pressed"
+                                       "{"
+                                       "background-color : grey;"
+                                       "}"
+                                       )
 
         start_stop_buttons_layout.addWidget(self.start_button)
         start_stop_buttons_layout.addWidget(self.stop_button)
 
-        termal_control_layout = QHBoxLayout()
+        termal_control_layout = QVBoxLayout()
 
         termal_on_button = QPushButton("ВКЛ. ОХЛАЖДЕНИЕ")
         termal_on_button.clicked.connect(self.termal_on_button_clicked)
+        termal_on_button.setMaximumSize(200, 40)
         termal_off_button = QPushButton("ВЫКЛ. ОХЛАЖДЕНИЕ")
         termal_off_button.clicked.connect(self.termal_off_button_clicked)
+        termal_off_button.setMaximumSize(200, 40)
 
         termal_control_layout.addWidget(termal_on_button)
         termal_control_layout.addWidget(termal_off_button)
@@ -612,27 +667,34 @@ class MainWindow(QtWidgets.QMainWindow):
         set_ang_layout = QHBoxLayout()
 
         set_ang_button = QPushButton("Установить угол")
+        set_ang_button.setMaximumSize(150, 40)
         set_ang_button.clicked.connect(self.set_ang_button_clicked)
         self.set_ang_line_edit = QLineEdit("101.1")
+        self.set_ang_line_edit.setMaximumSize(50, 40)
 
         set_ang_layout.addWidget(set_ang_button)
         set_ang_layout.addWidget(self.set_ang_line_edit)
 
         get_intensity_layout = QHBoxLayout()
-        self.get_intensity_label = QLabel("Интенсивность:")
+        get_intensity_label = QLabel("Интенсивность:")
+        get_intensity_label.setMaximumSize(100, 40)
+
         self.intensity_value = QLabel("")
-        self.get_intensity_label_ye = QLabel("у:е")
-        self.intensity_value.setFrameStyle(QFrame.Panel | QFrame.Sunken)
-        get_intensity_layout.addWidget(self.get_intensity_label)
+        self.intensity_value.setMaximumSize(50, 40)
+        intensity_label_ye = QLabel("у:е")
+        intensity_label_ye.setMaximumSize(50, 40)
+        self.intensity_value.setFrameStyle(QFrame.Box | QFrame.Plain)
+        get_intensity_layout.addWidget(get_intensity_label)
         get_intensity_layout.addWidget(self.intensity_value)
-        get_intensity_layout.addWidget(self.get_intensity_label_ye)
+        get_intensity_layout.addWidget(intensity_label_ye)
 
         save_to_file_button = QPushButton(
-            "Сохранить данные\nпоследнего спектра\n в файл")
-        save_to_file_button.setGeometry(40, 40, 40, 40)
+            "Сохранить данные\nспектра в файл")
+        save_to_file_button.setMaximumSize(200, 80)
         save_to_file_button.clicked.connect(self.save_data_to_file)
 
         self.logging = QPlainTextEdit()
+        self.logging.setMaximumWidth(200)
 
         control_layout = QVBoxLayout()
 
@@ -643,7 +705,8 @@ class MainWindow(QtWidgets.QMainWindow):
         control_layout.addLayout(termal_control_layout)
         control_layout.addLayout(set_ang_layout)
         control_layout.addLayout(get_intensity_layout)
-        control_layout.addWidget(save_to_file_button)
+        control_layout.addWidget(
+            save_to_file_button, alignment=QtCore.Qt.AlignCenter)
         control_layout.addWidget(self.logging)
 
         layout = QHBoxLayout()

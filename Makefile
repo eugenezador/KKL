@@ -13,6 +13,6 @@ rebuild:
 	rm -f src/QCL.spec
 
 clean:
-	rm -rf build/
+	rm -rf src/build/
 	rm -f QCL.spec
 	rm -f src/QCL.spec
