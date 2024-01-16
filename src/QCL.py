@@ -218,15 +218,17 @@ class Rigol_Worker(QObject, Xeryon_Worker):
     def move_motor(self, value):
         if self.is_Rigol_exist and self.is_Xeryon_exist:
             self.axisX.setDPOS(value)
+            self.sent_logging_info.emit(
+                "current angle: " + str(value))
             self.sent_intergal_value.emit(
                 round(float(value), 2), round(self.avarage_integral_calc(), 2))
 
     def step_motor(self):
-        if self.is_Rigol_exist:
+        if self.is_Rigol_exist and self.is_Xeryon_exist:
             self.axisX.setDPOS(self.angles[self.angles_indx])
             # print(self.angles[self.angles_indx])
-            self.sent_logging_info(
-                "current stepper angle: " + self.angles[self.angles_indx])
+            self.sent_logging_info.emit(
+                "current angle: " + self.angles[self.angles_indx])
             self.current_angle = self.angles[self.angles_indx]
             self.angles_indx += 1
             self.wave_indx += 1
@@ -376,7 +378,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.init_Xeryon("/dev/ttyACM0")
         self.init_Rigol()
         self.init_termal()
-        self.Xeryon_cbox.setCheckable(False)
+        self.Xeryon_cbox.setEnabled(False)
         self.Rigol_cbox.setEnabled(False)
         self.Termal_cbox.setEnabled(False)
 
@@ -397,6 +399,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.rigol.sent_avarage_integral_value.connect(self.update_plot)
         self.rigol.sent_logging_info.connect(self.print_logging_info)
+        
 
         self.rigol.moveToThread(self.rigol_thread)
 
@@ -407,6 +410,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.turn_on_termal.connect(self.termal.termal_turn_on)
 
         self.turn_off_termal.connect(self.termal.termal_turn_off)
+        self.termal.sent_logging_info.connect(self.print_logging_info)
 
         self.termal.sent_current_temperature_value.connect(
             self.print_current_temperature)
@@ -435,6 +439,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.Termal_cbox.setChecked(True)
 
     def set_ang_button_clicked(self):
+        # self.logging.clear()
         self.move_Xeryon.emit(self.set_ang_line_edit.text())
 
     def print_intergal_value(self, angle, intensity):
@@ -447,7 +452,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 time.sleep(0.1)
             else:
                 self.angle.clear()
-                self.logging.clear()
+                # self.logging.clear()
                 self.x.clear()
                 self.y.clear()
 
@@ -503,6 +508,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def clear_plot(self):
         self.graphWidget.clear()
+    def clear_logging(self):
+        self.logging.clear()
 
 
 ###############  Termal ########
@@ -696,6 +703,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logging = QPlainTextEdit()
         self.logging.setMaximumWidth(200)
 
+        clear_logging_button = QPushButton(
+            "Очистить терманал",  clicked=self.clear_logging)
+        clear_logging_button.setMaximumSize(200, 40)
+
         control_layout = QVBoxLayout()
 
         control_layout.addWidget(empty_label)
@@ -708,6 +719,7 @@ class MainWindow(QtWidgets.QMainWindow):
         control_layout.addWidget(
             save_to_file_button, alignment=QtCore.Qt.AlignCenter)
         control_layout.addWidget(self.logging)
+        control_layout.addWidget(clear_logging_button)
 
         layout = QHBoxLayout()
         layout.addLayout(plot_layout)
