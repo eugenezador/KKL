@@ -51,11 +51,14 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
     sent_logging_info = Signal(str)
 
+    finish_spectrum_plotting = Signal()
+
     is_working = False
     is_Rigol_exist = False
 
+    stop_angle = 0.0
+
     angles_indx = 0
-    wave_indx = 0
     wave_indx = 0
 
     def __del__(self):
@@ -80,9 +83,9 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.osc[2].set_vertical_scale_V(0.05)
             self.is_Rigol_exist = True
 
-    def get_start_angle_value(self, value):
-        self.curent_ang = round(float(value), 2)
-
+    def get_start_stop_angle_value(self, start_angle, stop_angle):
+        self.curent_ang = round(float(start_angle), 2)
+        self.stop_angle = stop_angle
         self.angles_indx = 0
         self.wave_indx = 0
         while round(float(self.curent_ang), 2) != round(float(self.angles[self.angles_indx]), 2):
@@ -237,10 +240,15 @@ class Rigol_Worker(QObject, Xeryon_Worker):
     def do_work(self):
         self.is_working = True
         while self.is_working:
+            if round(float(self.current_angle), 2) <= round(float(self.stop_angle), 2):
+                self.is_working = False
+                break
             time.sleep(0.1)
             self.step_motor()
             self.sent_avarage_integral_value.emit(round(float(self.current_angle), 2), int(
                 self.wave_numbers[self.wave_indx]), self.avarage_integral_calc())
+
+        self.finish_spectrum_plotting.emit()
 
 
 class Termal_Worker(QObject):
@@ -341,7 +349,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     start_rigol_xeryon_work = Signal()
 
-    sent_start_xeryon_angle = Signal(float)
+    sent_start_xeryon_angle = Signal(float, float)
 
     termal_start_work = Signal()
 
@@ -363,8 +371,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
-
-        os.system("sudo chmod 777 /dev/usbtmc*")
 
         self.init_widgets()
 
@@ -395,11 +401,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.start_rigol_xeryon_work.connect(self.rigol.do_work)
 
-        self.sent_start_xeryon_angle.connect(self.rigol.get_start_angle_value)
+        self.sent_start_xeryon_angle.connect(
+            self.rigol.get_start_stop_angle_value)
+        self.rigol.finish_spectrum_plotting.connect(self.stop_button_clicked)
 
         self.rigol.sent_avarage_integral_value.connect(self.update_plot)
         self.rigol.sent_logging_info.connect(self.print_logging_info)
-        
 
         self.rigol.moveToThread(self.rigol_thread)
 
@@ -452,7 +459,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 time.sleep(0.1)
             else:
                 self.angle.clear()
-                # self.logging.clear()
+                self.is_new_tick_scale = True
                 self.x.clear()
                 self.y.clear()
 
@@ -468,7 +475,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 self.rigol_thread.start()
                 self.sent_start_xeryon_angle.emit(
-                    round(float(self.start_line_edit.text()), 2))
+                    round(float(self.start_line_edit.text()), 2), round(float(self.stop_line_edit.text()), 2))
                 self.start_rigol_xeryon_work.emit()
                 self.start_button.setEnabled(False)
 
@@ -490,9 +497,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 f.write(st)
             f.close()
 
+    is_new_tick_scale = True
+
     def update_plot(self, angle, wave_number, avarage_integral):
         self.x.append(float(wave_number))
         self.y.append(float(avarage_integral))
+
+        if len(self.x) > 20 and self.is_new_tick_scale:
+            self.graphWidget.getAxis("bottom").setTickSpacing(
+                levels=[(22, 0)])
+            self.graphWidget.getAxis("left").setTickSpacing(
+                levels=[(22, 0)])
+            self.is_new_tick_scale = False
 
         if self.several_plots_enable_cbox.isChecked():
             pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
@@ -506,10 +522,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.x, self.y, name="my plot",  pen=pen)
             self.data_line.setData(self.x, self.y)
 
-    def clear_plot(self):
-        self.graphWidget.clear()
-    def clear_logging(self):
-        self.logging.clear()
+    # def clear_plot(self):
+    #     self.graphWidget.clear()
+
+    # def clear_logging(self):
+    #     self.logging.clear()
 
 
 ###############  Termal ########
@@ -534,6 +551,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.label_status.setText(str_temp)
 ###########################
 
+    def from_file_to_list(self, filemane):
+        list = []
+        file1 = open(filemane, 'r')
+        Lines = file1.readlines()
+
+        for line in Lines:
+            list.append(float(line))
+
+        return list
+
     def init_widgets(self):
         self.setWindowIcon(
             QtGui.QIcon('KKL.png'))
@@ -553,6 +580,11 @@ class MainWindow(QtWidgets.QMainWindow):
         font.setPixelSize(20)
         self.graphWidget.getAxis("bottom").setTickFont(font)
         self.graphWidget.getAxis("left").setTickFont(font)
+
+        # self.graphWidget.getAxis("bottom").setTickSpacing(
+        #     levels=[(22, 0)])
+        # self.graphWidget.getAxis("left").setTickSpacing(
+        #     levels=[(22, 0)])
 
         ##############
 
@@ -580,7 +612,7 @@ class MainWindow(QtWidgets.QMainWindow):
         new_layout = QHBoxLayout()
 
         self.clear_plot_button = QPushButton(
-            "Очистить график",  clicked=self.clear_plot)
+            "Очистить график",  clicked=self.graphWidget.clear)
         self.clear_plot_button.setMaximumSize(200, 40)
         self.several_plots_enable_cbox = QCheckBox(
             "Отображать прошлые спектры")
@@ -704,7 +736,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logging.setMaximumWidth(200)
 
         clear_logging_button = QPushButton(
-            "Очистить терманал",  clicked=self.clear_logging)
+            "Очистить терманал",  clicked=self.logging.clear)
         clear_logging_button.setMaximumSize(200, 40)
 
         control_layout = QVBoxLayout()
