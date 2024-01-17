@@ -364,7 +364,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
 
-        os.system("chmod 777 /dev/usbtmc*")
+        os.system("sudo chmod 777 /dev/usbtmc*")
 
         self.init_widgets()
 
