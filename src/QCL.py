@@ -30,6 +30,12 @@ import numpy as np
 import os.path
 
 
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+
+import pyqtgraph.exporters
+
+
 class Xeryon_Worker():
 
     is_Xeryon_exist = False
@@ -45,11 +51,13 @@ class Xeryon_Worker():
 
 
 class Rigol_Worker(QObject, Xeryon_Worker):
-    sent_avarage_integral_value = Signal(float, float, float)
+    sent_pick_list = pyqtSignal(list, list)
 
     sent_intergal_value = Signal(float, float)
 
     sent_logging_info = Signal(str)
+
+    save_png = Signal()
 
     finish_spectrum_plotting = Signal()
 
@@ -84,18 +92,18 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.is_Rigol_exist = True
 
     def get_start_stop_angle_value(self, start_angle, stop_angle):
-        self.curent_ang = round(float(start_angle), 2)
+        self.current_angle = round(float(start_angle), 2)
         self.stop_angle = stop_angle
-        self.angles_indx = 0
-        self.wave_indx = 0
-        while round(float(self.curent_ang), 2) != round(float(self.angles[self.angles_indx]), 2):
-            if round(float(self.curent_ang), 2) > round(float(self.angles[self.angles_indx]), 2):
-                self.curent_ang -= 0.05
-            elif self.angles_indx < len(self.angles):
-                self.angles_indx += 1
-                self.wave_indx += 1
+        # self.angles_indx = 0
+        # self.wave_indx = 0
+        # while round(float(self.current_angle), 2) != round(float(self.angles[self.angles_indx]), 2):
+        #     if round(float(self.current_angle), 2) > round(float(self.angles[self.angles_indx]), 2):
+        #         self.current_angle -= 0.05
+        #     elif self.angles_indx < len(self.angles):
+        #         self.angles_indx += 1
+        #         self.wave_indx += 1
 
-        self.axisX.setDPOS(float(self.curent_ang))
+        self.axisX.setDPOS(float(self.current_angle))
 
     def from_file_to_list(self, filemane):
         list = []
@@ -117,34 +125,12 @@ class Rigol_Worker(QObject, Xeryon_Worker):
     def intergal_per_area(self):
         self.calc_error = False
         self.osc[1].get_data('norm', 'channel%i.dat' % 1)
-        self.osc[2].get_data('norm', 'channel%i.dat' % 2)
+        # self.osc[2].get_data('norm', 'channel%i.dat' % 2)
 
         filename = "channel" + "1" + ".dat"
         self.get_data_for_integral(filename, 1, self.ch1_x, self.ch1_y)
-        filename = "channel" + "2" + ".dat"
-
-        self.get_data_for_integral(filename, 2, self.ch2_x, self.ch2_y)
 
         self.move_integral_data(self.ch1_y)
-        self.move_integral_data(self.ch2_y)
-
-        result = 0
-        if self.calc_error:
-            print("error")
-        else:
-            # ch1_sum = np.trapz(self.ch1_y, self.ch1_x)
-            # ch2_sum = np.trapz(self.ch2_y, self.ch2_x)
-            ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
-            ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
-
-            if float(ch2_sum) != 0:
-                result = float(ch1_sum) / float(ch2_sum)
-
-            else:
-                print("<< devision by zero >>")
-                self.calc_error = True
-
-        return result
 
     def move_integral_data(self, y_array):
         if np.any(y_array):
@@ -223,18 +209,17 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.axisX.setDPOS(value)
             self.sent_logging_info.emit(
                 "current angle: " + str(value))
-            self.sent_intergal_value.emit(
-                round(float(value), 2), round(self.avarage_integral_calc(), 2))
+            self.intergal_per_area()
+            self.sent_pick_list.emit(self.ch1_x, self.ch1_y)
+
+    step = 0.05
 
     def step_motor(self):
         if self.is_Rigol_exist and self.is_Xeryon_exist:
-            self.axisX.setDPOS(self.angles[self.angles_indx])
-            # print(self.angles[self.angles_indx])
+            self.axisX.setDPOS(self.current_angle)
+            self.intergal_per_area()
             self.sent_logging_info.emit(
-                "current angle: " + self.angles[self.angles_indx])
-            self.current_angle = self.angles[self.angles_indx]
-            self.angles_indx += 1
-            self.wave_indx += 1
+                "current angle: " + self.current_angle)
 
     @Slot()
     def do_work(self):
@@ -244,9 +229,12 @@ class Rigol_Worker(QObject, Xeryon_Worker):
                 self.is_working = False
                 break
             time.sleep(0.1)
-            self.step_motor()
-            self.sent_avarage_integral_value.emit(round(float(self.current_angle), 2), int(
-                self.wave_numbers[self.wave_indx]), self.avarage_integral_calc())
+            for i in range(1, 10):
+                self.step_motor()
+                self.current_angle += self.step
+                self.sent_pick_list.emit(self.ch1_x, self.ch1_y)
+
+            self.save_png.emit()
 
         self.finish_spectrum_plotting.emit()
 
@@ -401,11 +389,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.start_rigol_xeryon_work.connect(self.rigol.do_work)
 
+        self.rigol.save_png.connect(self.save_png)
+
         self.sent_start_xeryon_angle.connect(
             self.rigol.get_start_stop_angle_value)
         self.rigol.finish_spectrum_plotting.connect(self.stop_button_clicked)
 
-        self.rigol.sent_avarage_integral_value.connect(self.update_plot)
+        self.rigol.sent_pick_list.connect(self.update_plot)
         self.rigol.sent_logging_info.connect(self.print_logging_info)
 
         self.rigol.moveToThread(self.rigol_thread)
@@ -484,6 +474,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rigol_thread.wait(5000)
         self.start_button.setEnabled(True)
 
+    def save_png(self):
+        exporter = pg.exporters.ImageExporter(self.graphWidget)
+
+        # (note this also affects height parameter)
+        exporter.parameters()['width'] = 100
+
+        exporter.export('fileName.png')
+
     def save_data_to_file(self):
         filename = "user_spectr_" + \
             time.strftime("%H:%M:%S-%d.%m.%Y") + \
@@ -499,9 +497,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     is_new_tick_scale = True
 
-    def update_plot(self, angle, wave_number, avarage_integral):
-        self.x.append(float(wave_number))
-        self.y.append(float(avarage_integral))
+    def update_plot(self, ch1_x, ch1_y):
+        # self.x.append(float(wave_number))
+        # self.y.append(float(avarage_integral))
 
         if len(self.x) > 20 and self.is_new_tick_scale:
             self.graphWidget.getAxis("bottom").setTickSpacing(
@@ -510,23 +508,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 levels=[(22, 0)])
             self.is_new_tick_scale = False
 
-        if self.several_plots_enable_cbox.isChecked():
-            pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
-                           style=QtCore.Qt.SolidLine)
-            self.graphWidget.plot(self.x, self.y, pen=pen)
-        else:
-            self.color_index = 0
-            pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
-                           style=QtCore.Qt.SolidLine)
-            self.data_line = self.graphWidget.plot(
-                self.x, self.y, name="my plot",  pen=pen)
-            self.data_line.setData(self.x, self.y)
-
-    # def clear_plot(self):
-    #     self.graphWidget.clear()
-
-    # def clear_logging(self):
-    #     self.logging.clear()
+        pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
+                       style=QtCore.Qt.SolidLine)
+        self.graphWidget.plot(ch1_x, ch1_y, pen=pen)
 
 
 ###############  Termal ########
