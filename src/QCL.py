@@ -58,6 +58,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
     stop_angle = 0.0
 
+    current_angle = 0
     angles_indx = 0
     wave_indx = 0
 
