@@ -57,7 +57,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
     sent_logging_info = Signal(str)
 
-    save_png = Signal()
+    save_png = Signal(float)
 
     finish_spectrum_plotting = Signal()
 
@@ -231,10 +231,10 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             time.sleep(0.1)
             for i in range(1, 10):
                 self.step_motor()
-                self.current_angle += self.step
                 self.sent_pick_list.emit(self.ch1_x, self.ch1_y)
 
-            self.save_png.emit()
+            self.save_png.emit(self.current_angle)
+            self.current_angle += self.step
 
         self.finish_spectrum_plotting.emit()
 
@@ -474,14 +474,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rigol_thread.wait(5000)
         self.start_button.setEnabled(True)
 
-    def save_png(self):
-        exporter = pg.exporters.ImageExporter(self.graphWidget)
-
-        # (note this also affects height parameter)
-        exporter.parameters()['width'] = 100
-
-        exporter.export('fileName.png')
-
     def save_data_to_file(self):
         filename = "user_spectr_" + \
             time.strftime("%H:%M:%S-%d.%m.%Y") + \
@@ -511,6 +503,22 @@ class MainWindow(QtWidgets.QMainWindow):
         pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
                        style=QtCore.Qt.SolidLine)
         self.graphWidget.plot(ch1_x, ch1_y, pen=pen)
+
+    def save_png(self, filename_angle):
+        filename = filename_angle + ".png"
+
+        exporter = pg.exporters.ImageExporter(self.graphWidget.plotItem)
+
+        # set export parameters if needed
+        # (note this also affects height parameter)
+        exporter.parameters()['width'] = 500
+        exporter.parameters()['height'] = 500
+
+        # save to file
+        exporter.export(filename)
+        # os.makedirs("../photos", exist_ok=True)
+        # with open(os.path.join("../photos", filename), "w+") as f:
+        #     exporter.export(f)
 
 
 ###############  Termal ########
