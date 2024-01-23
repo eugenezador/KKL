@@ -59,6 +59,10 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
     save_png = Signal(float)
 
+    reset_color_index = Signal()
+
+    clear_plot = Signal()
+
     finish_spectrum_plotting = Signal()
 
     is_working = False
@@ -171,15 +175,15 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             y = float(''.join(re.findall("[^,]*,(.*)", line)))
 
             if chan_num == 1:
-                if float(x) > float(3.2e-07) and float(x) < float(1.14e-06) and float(y) < float(0.05):
-                    x_array.append(float(x))
-                    y_array.append(float(y))
-                    counter += 1
-            elif chan_num == 2:
-                if float(x) > float(1.02e-06) and float(x) < float(1.87e-06) and float(y) < float(0.05):
-                    x_array.append(float(x))
-                    y_array.append(float(y))
-                    counter += 1
+                # if float(x) > float(3.2e-07) and float(x) < float(1.14e-06) and float(y) < float(0.05):
+                x_array.append(float(x))
+                y_array.append(float(y))
+                counter += 1
+            # elif chan_num == 2:
+            #     if float(x) > float(1.02e-06) and float(x) < float(1.87e-06) and float(y) < float(0.05):
+            #         x_array.append(float(x))
+            #         y_array.append(float(y))
+            #         counter += 1
 
 ##############################
 
@@ -219,7 +223,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.axisX.setDPOS(self.current_angle)
             self.intergal_per_area()
             self.sent_logging_info.emit(
-                "current angle: " + self.current_angle)
+                "current angle: " + str(self.current_angle))
 
     @Slot()
     def do_work(self):
@@ -234,7 +238,9 @@ class Rigol_Worker(QObject, Xeryon_Worker):
                 self.sent_pick_list.emit(self.ch1_x, self.ch1_y)
 
             self.save_png.emit(self.current_angle)
-            self.current_angle += self.step
+            self.current_angle -= self.step
+            self.reset_color_index.emit()
+            self.clear_plot.emit()
 
         self.finish_spectrum_plotting.emit()
 
@@ -390,6 +396,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.start_rigol_xeryon_work.connect(self.rigol.do_work)
 
         self.rigol.save_png.connect(self.save_png)
+        self.rigol.clear_plot.connect(self.clear_plot)
+        self.rigol.reset_color_index.connect(self.reset_color_index)
 
         self.sent_start_xeryon_angle.connect(
             self.rigol.get_start_stop_angle_value)
@@ -400,6 +408,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.rigol.moveToThread(self.rigol_thread)
 
+    def clear_plot(self):
+        self.graphWidget.clear()
+
+    def reset_color_index(self):
+        self.color_index = -1
+    
     def init_Termal_Worker(self):
         self.termal = Termal_Worker()
         self.termal_thread = QThread()
@@ -450,6 +464,7 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.angle.clear()
                 self.is_new_tick_scale = True
+                self.several_plots_enable_cbox.setChecked(True)
                 self.x.clear()
                 self.y.clear()
 
@@ -500,12 +515,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 levels=[(22, 0)])
             self.is_new_tick_scale = False
 
-        pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
+        pen = pg.mkPen(color=self.color_array[self.color_index], width=4,
                        style=QtCore.Qt.SolidLine)
         self.graphWidget.plot(ch1_x, ch1_y, pen=pen)
 
+        self.color_index += 1
+
     def save_png(self, filename_angle):
-        filename = filename_angle + ".png"
+        filename = str(filename_angle) + ".png"
 
         exporter = pg.exporters.ImageExporter(self.graphWidget.plotItem)
 
