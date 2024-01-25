@@ -58,7 +58,6 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
     stop_angle = 0.0
 
-    current_angle = 0
     angles_indx = 0
     wave_indx = 0
 
@@ -85,18 +84,18 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.is_Rigol_exist = True
 
     def get_start_stop_angle_value(self, start_angle, stop_angle):
-        self.curent_ang = round(float(start_angle), 2)
+        self.current_angle = round(float(start_angle), 2)
         self.stop_angle = stop_angle
         self.angles_indx = 0
         self.wave_indx = 0
-        while round(float(self.curent_ang), 2) != round(float(self.angles[self.angles_indx]), 2):
-            if round(float(self.curent_ang), 2) > round(float(self.angles[self.angles_indx]), 2):
-                self.curent_ang -= 0.05
+        while round(float(self.current_angle), 2) != round(float(self.angles[self.angles_indx]), 2):
+            if round(float(self.current_angle), 2) > round(float(self.angles[self.angles_indx]), 2):
+                self.current_angle -= 0.05
             elif self.angles_indx < len(self.angles):
                 self.angles_indx += 1
                 self.wave_indx += 1
 
-        self.axisX.setDPOS(float(self.curent_ang))
+        self.axisX.setDPOS(float(self.current_angle))
 
     def from_file_to_list(self, filemane):
         list = []
@@ -358,6 +357,9 @@ class MainWindow(QtWidgets.QMainWindow):
     turn_off_termal = Signal()
 
     #########
+    saved_spectrums_map = dict()
+
+    #########
     angle = []
     x = []
     y = []
@@ -459,7 +461,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.label_status.setText("Введите число в фромате dddd.dddd")
                 time.sleep(0.1)
             else:
-                self.angle.clear()
+                self.saved_spectrums_map[self.color_index] = []
+                self.saved_spectrums_map[self.color_index].append(self.x)
+                self.saved_spectrums_map[self.color_index].append(self.y)
+
+                # self.angle.clear()
                 self.is_new_tick_scale = True
                 self.x.clear()
                 self.y.clear()
@@ -473,6 +479,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 else:
                     self.color_index = 0
                     self.graphWidget.clear()
+                    self.saved_spectrums_map.clear()
 
                 self.rigol_thread.start()
                 self.sent_start_xeryon_angle.emit(
@@ -486,17 +493,29 @@ class MainWindow(QtWidgets.QMainWindow):
         self.start_button.setEnabled(True)
 
     def save_data_to_file(self):
-        filename = "user_spectr_" + \
-            time.strftime("%H:%M:%S-%d.%m.%Y") + \
-            '_' + str(self.color_array[self.color_index]) + ".txt"
-
         os.makedirs("../result", exist_ok=True)
-        with open(os.path.join("../result", filename), "w+") as f:
-            for index in range(len(self.x)):
-                st = str(self.angle[index]) + "\t" + str(float(self.x[index])) + \
-                    "\t" + str(float(self.y[index])) + "\n"
-                f.write(st)
-            f.close()
+        for key, value in self.saved_spectrums_map.items():
+            filename = "user_spectr_" + \
+                time.strftime("%H:%M:%S-%d.%m.%Y") + \
+                '_' + str(self.color_array[key]) + ".txt"
+            with open(os.path.join("../result", filename), "w+") as f:
+                for i in range(len(value[0])):
+                    st = str(float(value[0][i])) + \
+                        "\t" + str(float(value[1][i])) + "\n"
+                    f.write(st)
+                f.close()
+
+    # def save_data_to_file(self):
+    #     filename = "user_spectr_" + \
+    #         time.strftime("%H:%M:%S-%d.%m.%Y") + \
+    #         '_' + str(self.color_array[self.color_index]) + ".txt"
+    #     os.makedirs("../result", exist_ok=True)
+    #     with open(os.path.join("../result", filename), "w+") as f:
+    #         for index in range(len(self.x)):
+    #             st = str(self.angle[index]) + "\t" + str(float(self.x[index])) + \
+    #                 "\t" + str(float(self.y[index])) + "\n"
+    #             f.write(st)
+    #         f.close()
 
     is_new_tick_scale = True
 
@@ -523,14 +542,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.x, self.y, name="my plot",  pen=pen)
             self.data_line.setData(self.x, self.y)
 
-    # def clear_plot(self):
-    #     self.graphWidget.clear()
+    def clear_plot(self):
+        self.graphWidget.clear()
+        self.saved_spectrums_map.clear()
 
     # def clear_logging(self):
     #     self.logging.clear()
 
 
 ###############  Termal ########
+
 
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
@@ -613,7 +634,7 @@ class MainWindow(QtWidgets.QMainWindow):
         new_layout = QHBoxLayout()
 
         self.clear_plot_button = QPushButton(
-            "Очистить график",  clicked=self.graphWidget.clear)
+            "Очистить график",  clicked=self.clear_plot)
         self.clear_plot_button.setMaximumSize(200, 40)
         self.several_plots_enable_cbox = QCheckBox(
             "Отображать прошлые спектры")
@@ -786,3 +807,4 @@ app = QtWidgets.QApplication(sys.argv)
 w = MainWindow()
 w.show()
 sys.exit(app.exec_())
+
