@@ -462,6 +462,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 time.sleep(0.1)
             else:
                 self.saved_spectrums_map[self.color_index] = []
+                self.saved_spectrums_map[self.color_index].append(self.angle)
                 self.saved_spectrums_map[self.color_index].append(self.x)
                 self.saved_spectrums_map[self.color_index].append(self.y)
 
@@ -474,10 +475,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     if self.color_index < (len(self.color_array) - 1):
                         self.color_index += 1
                     else:
-                        self.color_index = 0
+                        self.color_index = -1
                     # print("color index : " + str(self.color_index))
                 else:
-                    self.color_index = 0
+                    self.color_index = -1
                     self.graphWidget.clear()
                     self.saved_spectrums_map.clear()
 
@@ -499,9 +500,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 time.strftime("%H:%M:%S-%d.%m.%Y") + \
                 '_' + str(self.color_array[key]) + ".txt"
             with open(os.path.join("../result", filename), "w+") as f:
+                st = "Angle" + \
+                    "\t" + "Wave_number" + "\t" + "Intensity" + "\n"
+                f.write(st)
                 for i in range(len(value[0])):
                     st = str(float(value[0][i])) + \
-                        "\t" + str(float(value[1][i])) + "\n"
+                        "\t" + str(float(value[1][i])) + \
+                        "\t" + str(float(value[2][i])) + "\n"
                     f.write(st)
                 f.close()
 
@@ -520,6 +525,7 @@ class MainWindow(QtWidgets.QMainWindow):
     is_new_tick_scale = True
 
     def update_plot(self, angle, wave_number, avarage_integral):
+        self.angle.append(angle)
         self.x.append(float(wave_number))
         self.y.append(float(avarage_integral))
 
@@ -551,7 +557,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 ###############  Termal ########
-
 
     def termal_on_button_clicked(self):
         self.turn_on_termal.emit()
@@ -807,4 +812,3 @@ app = QtWidgets.QApplication(sys.argv)
 w = MainWindow()
 w.show()
 sys.exit(app.exec_())
-
