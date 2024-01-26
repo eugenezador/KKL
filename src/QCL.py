@@ -202,7 +202,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
         avarage_counter = 0
         # start = time.time()
         if self.is_Rigol_exist:
-            for i in range(0, 10):
+            for i in range(0, 2):
                 integral = float(self.intergal_per_area())
                 self.sent_logging_info.emit(str(integral))
                 # print(integral)
@@ -496,6 +496,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def save_data_to_file(self):
         os.makedirs("../result", exist_ok=True)
         for key, value in self.saved_spectrums_map.items():
+            print(key)
+            # print(value)
+            # print(value[0])
+            # print(value[0][0])
             filename = "user_spectr_" + \
                 time.strftime("%H:%M:%S-%d.%m.%Y") + \
                 '_' + str(self.color_array[key]) + ".txt"
@@ -503,10 +507,16 @@ class MainWindow(QtWidgets.QMainWindow):
                 st = "Angle" + \
                     "\t" + "Wave_number" + "\t" + "Intensity" + "\n"
                 f.write(st)
-                for i in range(len(value[0])):
+                print(len(value[0]))
+                for i in range(len(value[])):
+                    print(value[0][i])
+                    print(value[1][i])
+                    print(value[2][i])
+
                     st = str(float(value[0][i])) + \
                         "\t" + str(float(value[1][i])) + \
                         "\t" + str(float(value[2][i])) + "\n"
+                    print(st)
                     f.write(st)
                 f.close()
 

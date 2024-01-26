@@ -8,6 +8,8 @@ then
     echo '====  PYTHON3 INSTALLED  ===='
 fi
 
+# sudo apt-get update
+# sudo apt-get install build-essential
 sudo apt update
 sudo apt install python3-pip
 pip3 install pyserial
