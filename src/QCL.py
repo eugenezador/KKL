@@ -391,7 +391,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.Rigol_cbox.setEnabled(False)
         self.Termal_cbox.setEnabled(False)
 
-        self.termal_on_button_clicked()
+        self.termal_button_clicked()
 
     def init_Rigol_Worker(self):
         self.rigol = Rigol_Worker()
@@ -419,7 +419,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.turn_on_termal.connect(self.termal.termal_turn_on)
 
-        self.turn_off_termal.connect(self.termal.termal_turn_off)
+        # self.turn_off_termal.connect(self.termal.termal_turn_off)
         self.termal.sent_logging_info.connect(self.print_logging_info)
 
         self.termal.sent_current_temperature_value.connect(
@@ -494,12 +494,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.start_button.setEnabled(True)
 
     def save_data_to_file(self):
+        print(self.saved_spectrums_map)
         os.makedirs("../result", exist_ok=True)
         for key, value in self.saved_spectrums_map.items():
             print(key)
-            # print(value)
-            # print(value[0])
-            # print(value[0][0])
+
             filename = "user_spectr_" + \
                 time.strftime("%H:%M:%S-%d.%m.%Y") + \
                 '_' + str(self.color_array[key]) + ".txt"
@@ -507,18 +506,42 @@ class MainWindow(QtWidgets.QMainWindow):
                 st = "Angle" + \
                     "\t" + "Wave_number" + "\t" + "Intensity" + "\n"
                 f.write(st)
-                print(len(value[0]))
-                for i in range(len(value[])):
-                    print(value[0][i])
-                    print(value[1][i])
-                    print(value[2][i])
 
-                    st = str(float(value[0][i])) + \
-                        "\t" + str(float(value[1][i])) + \
-                        "\t" + str(float(value[2][i])) + "\n"
+                i = 0
+                j = 0
+                k = 0
+                while (i < len(value[0]) or j < len(value[1]) or k < len(value[2])):
+
+                    st = ""
+                    if i < len(value[0]):
+                        st += str(float(value[0][i])) + '\t'
+                        i += 1
+                    else:
+                        st += 'n' + '\t'
+
+                    if j < len(value[1]):
+                        st += str(float(value[1][j])) + '\t'
+                        j += 1
+                    else:
+                        st += 'n' + '\t'
+
+                    if k < len(value[2]):
+                        st += str(float(value[2][k])) + '\n'
+                        k += 1
+                    else:
+                        st += 'n' + '\n'
+
                     print(st)
                     f.write(st)
                 f.close()
+                # for i, j, k in zip(range(len(value[0])), range(len(value[1])), range(len(value[2]))):
+
+                #     st = str(float(value[0][i])) + \
+                #         "\t" + str(float(value[1][j])) + \
+                #         "\t" + str(float(value[2][k])) + "\n"
+                #     print(st)
+                #     f.write(st)
+                # f.close()
 
     # def save_data_to_file(self):
     #     filename = "user_spectr_" + \
@@ -568,9 +591,39 @@ class MainWindow(QtWidgets.QMainWindow):
 
 ###############  Termal ########
 
-    def termal_on_button_clicked(self):
-        self.turn_on_termal.emit()
-        self.termal_start_work.emit()
+    def termal_button_clicked(self):
+        if self.termal.is_Termal_turn_On:
+            self.termal_button.setText("ВЫКЛ. ОХЛАЖДЕНИЕ")
+            self.termal_button.setStyleSheet("QPushButton"
+                                             "{"
+                                             "background-color : red;"
+                                             "}"
+                                             "QPushButton"
+                                             "{"
+                                             "color : white;"
+                                             "}"
+                                             "QPushButton::pressed"
+                                             "{"
+                                             "background-color : grey;"
+                                             "}"
+                                             )
+
+        else:
+            self.turn_on_termal.emit()
+            self.termal_start_work.emit()
+            self.termal_button.setStyleSheet("QPushButton"
+                                             "{"
+                                             "background-color : green;"
+                                             "}"
+                                             "QPushButton"
+                                             "{"
+                                             "color : white;"
+                                             "}"
+                                             "QPushButton::pressed"
+                                             "{"
+                                             "background-color : grey;"
+                                             "}"
+                                             )
 
     def termal_off_button_clicked(self):
         self.turn_off_termal.emit()
@@ -730,15 +783,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         termal_control_layout = QVBoxLayout()
 
-        termal_on_button = QPushButton("ВКЛ. ОХЛАЖДЕНИЕ")
-        termal_on_button.clicked.connect(self.termal_on_button_clicked)
-        termal_on_button.setMaximumSize(200, 40)
-        termal_off_button = QPushButton("ВЫКЛ. ОХЛАЖДЕНИЕ")
-        termal_off_button.clicked.connect(self.termal_off_button_clicked)
-        termal_off_button.setMaximumSize(200, 40)
+        self.termal_button = QPushButton("ВКЛ. ОХЛАЖДЕНИЕ")
+        self.termal_button.clicked.connect(self.termal_button_clicked)
+        self.termal_button.setMaximumSize(200, 40)
+        # termal_off_button = QPushButton("ВЫКЛ. ОХЛАЖДЕНИЕ")
+        # termal_off_button.clicked.connect(self.termal_off_button_clicked)
+        # termal_off_button.setMaximumSize(200, 40)
 
-        termal_control_layout.addWidget(termal_on_button)
-        termal_control_layout.addWidget(termal_off_button)
+        termal_control_layout.addWidget(self.termal_button)
+        # termal_control_layout.addWidget(termal_off_button)
 
         set_ang_layout = QHBoxLayout()
 
