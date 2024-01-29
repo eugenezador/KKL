@@ -1,3 +1,4 @@
+from copy import deepcopy
 from Xeryon import *
 # from pylablib.devices import Ophir
 import rigol2000a
@@ -28,6 +29,7 @@ from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slo
 import numpy as np
 
 import os.path
+import random
 
 
 class Xeryon_Worker():
@@ -202,7 +204,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
         avarage_counter = 0
         # start = time.time()
         if self.is_Rigol_exist:
-            for i in range(0, 2):
+            for i in range(0, 10):
                 integral = float(self.intergal_per_area())
                 self.sent_logging_info.emit(str(integral))
                 # print(integral)
@@ -230,9 +232,9 @@ class Rigol_Worker(QObject, Xeryon_Worker):
         if self.is_Rigol_exist and self.is_Xeryon_exist:
             self.axisX.setDPOS(self.angles[self.angles_indx])
             # print(self.angles[self.angles_indx])
+            self.current_angle = self.angles[self.angles_indx]
             self.sent_logging_info.emit(
                 "current angle: " + self.angles[self.angles_indx])
-            self.current_angle = self.angles[self.angles_indx]
             self.angles_indx += 1
             self.wave_indx += 1
 
@@ -246,8 +248,8 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             time.sleep(0.1)
             self.step_motor()
             self.sent_avarage_integral_value.emit(round(float(self.current_angle), 2), int(
-                self.wave_numbers[self.wave_indx]), self.avarage_integral_calc())
-
+            self.wave_numbers[self.wave_indx]), self.avarage_integral_calc())
+                
         self.finish_spectrum_plotting.emit()
 
 
@@ -419,7 +421,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.turn_on_termal.connect(self.termal.termal_turn_on)
 
-        # self.turn_off_termal.connect(self.termal.termal_turn_off)
+        self.turn_off_termal.connect(self.termal.termal_turn_off)
         self.termal.sent_logging_info.connect(self.print_logging_info)
 
         self.termal.sent_current_temperature_value.connect(
@@ -455,18 +457,15 @@ class MainWindow(QtWidgets.QMainWindow):
     def print_intergal_value(self, angle, intensity):
         self.intensity_value.setText(str(intensity))
 
+
+
     def start_button_clicked(self):
         if self.rigol.is_Xeryon_exist:
             if re.findall("\d+\.\d+", str(self.start_line_edit.text())) == "" or re.findall("\d+\.\d+", str(self.stop_line_edit.text())) == "":
                 self.label_status.setText("Введите число в фромате dddd.dddd")
                 time.sleep(0.1)
             else:
-                self.saved_spectrums_map[self.color_index] = []
-                self.saved_spectrums_map[self.color_index].append(self.angle)
-                self.saved_spectrums_map[self.color_index].append(self.x)
-                self.saved_spectrums_map[self.color_index].append(self.y)
-
-                # self.angle.clear()
+                self.angle.clear()
                 self.is_new_tick_scale = True
                 self.x.clear()
                 self.y.clear()
@@ -476,9 +475,8 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.color_index += 1
                     else:
                         self.color_index = -1
-                    # print("color index : " + str(self.color_index))
                 else:
-                    self.color_index = -1
+                    self.color_index = 0
                     self.graphWidget.clear()
                     self.saved_spectrums_map.clear()
 
@@ -492,68 +490,31 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rigol.is_working = False
         self.rigol_thread.wait(5000)
         self.start_button.setEnabled(True)
+        if self.angle or self.x or self.y:
+            self.saved_spectrums_map[self.color_index] = []
+            self.saved_spectrums_map[self.color_index].append(deepcopy(self.angle))
+            self.saved_spectrums_map[self.color_index].append(deepcopy(self.x))
+            self.saved_spectrums_map[self.color_index].append(deepcopy(self.y))
+
+        
+            
 
     def save_data_to_file(self):
-        print(self.saved_spectrums_map)
         os.makedirs("../result", exist_ok=True)
         for key, value in self.saved_spectrums_map.items():
-            print(key)
-
-            filename = "user_spectr_" + \
-                time.strftime("%H:%M:%S-%d.%m.%Y") + \
-                '_' + str(self.color_array[key]) + ".txt"
+            filename = "user_spectr_" + time.strftime("%H:%M:%S-%d.%m.%Y") + '_' + str(self.color_array[key]) + ".txt"
             with open(os.path.join("../result", filename), "w+") as f:
                 st = "Angle" + \
                     "\t" + "Wave_number" + "\t" + "Intensity" + "\n"
                 f.write(st)
-
-                i = 0
-                j = 0
-                k = 0
-                while (i < len(value[0]) or j < len(value[1]) or k < len(value[2])):
-
-                    st = ""
-                    if i < len(value[0]):
-                        st += str(float(value[0][i])) + '\t'
-                        i += 1
-                    else:
-                        st += 'n' + '\t'
-
-                    if j < len(value[1]):
-                        st += str(float(value[1][j])) + '\t'
-                        j += 1
-                    else:
-                        st += 'n' + '\t'
-
-                    if k < len(value[2]):
-                        st += str(float(value[2][k])) + '\n'
-                        k += 1
-                    else:
-                        st += 'n' + '\n'
-
+                for i in range(len(value[0])):
+                    st = str(float(value[0][i])) + \
+                        "\t" + str(float(value[1][i])) + \
+                        "\t" + '\t' + str(float(value[2][i])) + "\n"
                     print(st)
                     f.write(st)
                 f.close()
-                # for i, j, k in zip(range(len(value[0])), range(len(value[1])), range(len(value[2]))):
 
-                #     st = str(float(value[0][i])) + \
-                #         "\t" + str(float(value[1][j])) + \
-                #         "\t" + str(float(value[2][k])) + "\n"
-                #     print(st)
-                #     f.write(st)
-                # f.close()
-
-    # def save_data_to_file(self):
-    #     filename = "user_spectr_" + \
-    #         time.strftime("%H:%M:%S-%d.%m.%Y") + \
-    #         '_' + str(self.color_array[self.color_index]) + ".txt"
-    #     os.makedirs("../result", exist_ok=True)
-    #     with open(os.path.join("../result", filename), "w+") as f:
-    #         for index in range(len(self.x)):
-    #             st = str(self.angle[index]) + "\t" + str(float(self.x[index])) + \
-    #                 "\t" + str(float(self.y[index])) + "\n"
-    #             f.write(st)
-    #         f.close()
 
     is_new_tick_scale = True
 
@@ -561,21 +522,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.angle.append(angle)
         self.x.append(float(wave_number))
         self.y.append(float(avarage_integral))
+        print(float(avarage_integral))
 
-        if len(self.x) > 20 and self.is_new_tick_scale:
+        if len(self.x) > 2 and self.is_new_tick_scale:
             self.graphWidget.getAxis("bottom").setTickSpacing(
                 levels=[(22, 0)])
             self.graphWidget.getAxis("left").setTickSpacing(
-                levels=[(22, 0)])
+                levels=[(0.1, 0)])
             self.is_new_tick_scale = False
 
         if self.several_plots_enable_cbox.isChecked():
-            pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
+            pen = pg.mkPen(color=self.color_array[self.color_index], width=6,
                            style=QtCore.Qt.SolidLine)
             self.graphWidget.plot(self.x, self.y, pen=pen)
         else:
-            self.color_index = 0
-            pen = pg.mkPen(color=self.color_array[self.color_index], width=8,
+            # self.color_index = 0
+            pen = pg.mkPen(color=self.color_array[self.color_index], width=6,
                            style=QtCore.Qt.SolidLine)
             self.data_line = self.graphWidget.plot(
                 self.x, self.y, name="my plot",  pen=pen)
@@ -584,6 +546,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def clear_plot(self):
         self.graphWidget.clear()
         self.saved_spectrums_map.clear()
+        self.color_index = -1
 
     # def clear_logging(self):
     #     self.logging.clear()
@@ -591,8 +554,31 @@ class MainWindow(QtWidgets.QMainWindow):
 
 ###############  Termal ########
 
+    
+    is_termal_on = False
     def termal_button_clicked(self):
-        if self.termal.is_Termal_turn_On:
+        if self.is_termal_on:
+            self.turn_off_termal.emit()
+            self.termal_button.setText("ВКЛ. ОХЛАЖДЕНИЕ")
+            self.termal_button.setStyleSheet("QPushButton"
+                                             "{"
+                                             "background-color : green;"
+                                             "}"
+                                             "QPushButton"
+                                             "{"
+                                             "color : white;"
+                                             "}"
+                                             "QPushButton::pressed"
+                                             "{"
+                                             "background-color : grey;"
+                                             "}"
+                                             )
+            self.is_termal_on = False
+
+        else:
+            self.turn_on_termal.emit()
+            self.termal_start_work.emit()
+            self.is_termal_on = True
             self.termal_button.setText("ВЫКЛ. ОХЛАЖДЕНИЕ")
             self.termal_button.setStyleSheet("QPushButton"
                                              "{"
@@ -608,25 +594,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                              "}"
                                              )
 
-        else:
-            self.turn_on_termal.emit()
-            self.termal_start_work.emit()
-            self.termal_button.setStyleSheet("QPushButton"
-                                             "{"
-                                             "background-color : green;"
-                                             "}"
-                                             "QPushButton"
-                                             "{"
-                                             "color : white;"
-                                             "}"
-                                             "QPushButton::pressed"
-                                             "{"
-                                             "background-color : grey;"
-                                             "}"
-                                             )
-
-    def termal_off_button_clicked(self):
-        self.turn_off_termal.emit()
+    # def termal_off_button_clicked(self):
+    #     self.turn_off_termal.emit()
 
     def print_current_temperature(self, current_temp):
         str_temp = "Температура лазера= " + \
@@ -724,7 +693,7 @@ class MainWindow(QtWidgets.QMainWindow):
         start_angle_value_layout = QHBoxLayout()
         self.start_label = QLabel("Начальный угол: ")
         self.start_label.setMaximumSize(200, 40)
-        self.start_line_edit = QLineEdit("110")
+        self.start_line_edit = QLineEdit("110.05")
         self.start_line_edit.setMaximumSize(80, 40)
         start_angle_value_layout.addWidget(
             self.start_label, alignment=QtCore.Qt.AlignCenter)
@@ -781,16 +750,16 @@ class MainWindow(QtWidgets.QMainWindow):
         start_stop_buttons_layout.addWidget(self.start_button)
         start_stop_buttons_layout.addWidget(self.stop_button)
 
-        termal_control_layout = QVBoxLayout()
+        # termal_control_layout = QVBoxLayout()
 
         self.termal_button = QPushButton("ВКЛ. ОХЛАЖДЕНИЕ")
         self.termal_button.clicked.connect(self.termal_button_clicked)
-        self.termal_button.setMaximumSize(200, 40)
+        self.termal_button.setMaximumSize(200, 80)
         # termal_off_button = QPushButton("ВЫКЛ. ОХЛАЖДЕНИЕ")
         # termal_off_button.clicked.connect(self.termal_off_button_clicked)
         # termal_off_button.setMaximumSize(200, 40)
 
-        termal_control_layout.addWidget(self.termal_button)
+        # termal_control_layout.addWidget(self.termal_button)
         # termal_control_layout.addWidget(termal_off_button)
 
         set_ang_layout = QHBoxLayout()
@@ -835,13 +804,15 @@ class MainWindow(QtWidgets.QMainWindow):
         control_layout.addLayout(start_angle_value_layout)
         control_layout.addLayout(stop_angle_value_layout)
         control_layout.addLayout(start_stop_buttons_layout)
-        control_layout.addLayout(termal_control_layout)
+        # control_layout.addLayout(termal_control_layout)
         control_layout.addLayout(set_ang_layout)
         control_layout.addLayout(get_intensity_layout)
+        
         control_layout.addWidget(
             save_to_file_button, alignment=QtCore.Qt.AlignCenter)
         control_layout.addWidget(self.logging)
         control_layout.addWidget(clear_logging_button)
+        control_layout.addWidget(self.termal_button)
 
         layout = QHBoxLayout()
         layout.addLayout(plot_layout)
