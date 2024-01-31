@@ -1,4 +1,6 @@
+
 from copy import deepcopy
+import json
 from Xeryon import *
 # from pylablib.devices import Ophir
 import rigol2000a
@@ -6,7 +8,7 @@ import rigol2000a
 import serial
 import time
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QMessageBox, QPushButton, QVBoxLayout,  QCheckBox, QHBoxLayout, QLabel, QFrame, QLineEdit, QComboBox, QPlainTextEdit
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QMessageBox, QPushButton, QVBoxLayout,  QCheckBox, QHBoxLayout, QLabel, QFrame, QLineEdit, QComboBox, QPlainTextEdit, QProgressBar
 from PyQt5 import QtWidgets, QtCore
 
 from PyQt5.QtGui import QFont, QIcon
@@ -55,6 +57,11 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
     finish_spectrum_plotting = Signal()
 
+    increase_step_progress_bar = Signal(int)
+    increase_spectrum_progress_bar = Signal(float)
+
+    reset_progress_bar = Signal()
+
     is_working = False
     is_Rigol_exist = False
 
@@ -62,6 +69,9 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
     angles_indx = 0
     wave_indx = 0
+
+    progress_steps_amount = 0
+    progress_step = 0
 
     def __del__(self):
         if self.is_Xeryon_exist:
@@ -97,6 +107,10 @@ class Rigol_Worker(QObject, Xeryon_Worker):
                 self.angles_indx += 1
                 self.wave_indx += 1
 
+        self.progress_steps_amount = self.binary_search(
+            self.angles, self.stop_angle) - self.binary_search(self.angles, self.current_angle)
+        self.progress_step = 100 / self.progress_steps_amount
+
         self.axisX.setDPOS(float(self.current_angle))
 
     def from_file_to_list(self, filemane):
@@ -108,6 +122,19 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             list.append(line)
 
         return list
+
+    def binary_search(list, value):
+        first = 0
+        last = len(list)-1
+        while (first <= last):
+            mid = (first+last)//2
+            if list[mid] == value:
+                return mid
+            elif list[mid] > value:
+                first = mid+1
+            else:
+                last = mid-1
+        return -1
 
     ################### --Integral-- #######################
     calc_error = False
@@ -201,12 +228,13 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
     def avarage_integral_calc(self):
         res = 0
-        avarage_counter = 0
+        # avarage_counter = 0
         # start = time.time()
         if self.is_Rigol_exist:
-            for i in range(0, 10):
+            for avarage_counter in range(0, 10):
                 integral = float(self.intergal_per_area())
                 self.sent_logging_info.emit(str(integral))
+                self.increase_step_progress_bar.emit(avarage_counter * 10)
                 # print(integral)
                 avarage_counter += 1
                 if integral > 0.5 and integral < 6:
@@ -248,8 +276,16 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             time.sleep(0.1)
             self.step_motor()
             self.sent_avarage_integral_value.emit(round(float(self.current_angle), 2), int(
-            self.wave_numbers[self.wave_indx]), self.avarage_integral_calc())
-                
+                self.wave_numbers[self.wave_indx]), self.avarage_integral_calc())
+
+            if round(float(self.current_angle), 2) == round(float(self.stop_angle), 2):
+                self.increase_spectrum_progress_bar.emit(100)
+
+            self.increase_spectrum_progress_bar.emit(
+                np.floor(self.progress_step))
+            self.progress_step += self.progress_step
+            self.reset_progress_bar.emit("step")
+
         self.finish_spectrum_plotting.emit()
 
 
@@ -406,6 +442,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.start_rigol_xeryon_work.connect(self.rigol.do_work)
 
+        self.rigol.increase_step_progress_bar.connect(
+            self.update_step_progress_bar)
+        self.rigol.increase_spectrum_progress_bar.connect(
+            self.update_spectrum_progress_bar)
+
+        self.rigol.reset_progress_bar.connect(self.step_progress_bar.reset)
+
         self.sent_start_xeryon_angle.connect(
             self.rigol.get_start_stop_angle_value)
         self.rigol.finish_spectrum_plotting.connect(self.stop_button_clicked)
@@ -435,6 +478,18 @@ class MainWindow(QtWidgets.QMainWindow):
         # start the thread
         self.termal_thread.start()
 
+    def update_step_progress_bar(self, value):
+        if value <= self.step_progress_bar.maximum():
+            self.step_progress_bar.setValue(value)
+            self.step_progress_bar.setFormat(
+                "Запись шага: " + str(value) + '%')
+
+    def update_spectrum_progress_bar(self, value):
+        if value <= self.spectrum_progress_bar.maximum():
+            self.spectrum_progress_bar.setValue(value)
+            self.spectrum_progress_bar.setFormat(
+                "Запись спектра: " + str(value) + '%')
+
     def print_logging_info(self, log_str):
         self.logging.appendPlainText(log_str)
 
@@ -457,8 +512,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def print_intergal_value(self, angle, intensity):
         self.intensity_value.setText(str(intensity))
 
-
-
     def start_button_clicked(self):
         if self.rigol.is_Xeryon_exist:
             if re.findall("\d+\.\d+", str(self.start_line_edit.text())) == "" or re.findall("\d+\.\d+", str(self.stop_line_edit.text())) == "":
@@ -469,6 +522,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.is_new_tick_scale = True
                 self.x.clear()
                 self.y.clear()
+                self.spectrum_progress_bar.reset()
 
                 if self.several_plots_enable_cbox.isChecked():
                     if self.color_index < (len(self.color_array) - 1):
@@ -492,17 +546,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self.start_button.setEnabled(True)
         if self.angle or self.x or self.y:
             self.saved_spectrums_map[self.color_index] = []
-            self.saved_spectrums_map[self.color_index].append(deepcopy(self.angle))
+            self.saved_spectrums_map[self.color_index].append(
+                deepcopy(self.angle))
             self.saved_spectrums_map[self.color_index].append(deepcopy(self.x))
             self.saved_spectrums_map[self.color_index].append(deepcopy(self.y))
 
-        
-            
-
     def save_data_to_file(self):
+
+        # with open('result.json', 'w') as fp:
+        #     json.dump(self.saved_spectrums_map, fp)
+
         os.makedirs("../result", exist_ok=True)
         for key, value in self.saved_spectrums_map.items():
-            filename = "user_spectr_" + time.strftime("%H:%M:%S-%d.%m.%Y") + '_' + str(self.color_array[key]) + ".txt"
+            filename = "user_spectr_" + \
+                time.strftime("%H:%M:%S-%d.%m.%Y") + '_' + \
+                str(self.color_array[key]) + ".txt"
             with open(os.path.join("../result", filename), "w+") as f:
                 st = "Angle" + \
                     "\t" + "Wave_number" + "\t" + "Intensity" + "\n"
@@ -514,7 +572,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     print(st)
                     f.write(st)
                 f.close()
-
 
     is_new_tick_scale = True
 
@@ -554,8 +611,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
 ###############  Termal ########
 
-    
     is_termal_on = False
+
     def termal_button_clicked(self):
         if self.is_termal_on:
             self.turn_off_termal.emit()
@@ -755,12 +812,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.termal_button = QPushButton("ВКЛ. ОХЛАЖДЕНИЕ")
         self.termal_button.clicked.connect(self.termal_button_clicked)
         self.termal_button.setMaximumSize(200, 80)
-        # termal_off_button = QPushButton("ВЫКЛ. ОХЛАЖДЕНИЕ")
-        # termal_off_button.clicked.connect(self.termal_off_button_clicked)
-        # termal_off_button.setMaximumSize(200, 40)
-
-        # termal_control_layout.addWidget(self.termal_button)
-        # termal_control_layout.addWidget(termal_off_button)
 
         set_ang_layout = QHBoxLayout()
 
@@ -775,7 +826,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         get_intensity_layout = QHBoxLayout()
         get_intensity_label = QLabel("Интенсивность:")
-        get_intensity_label.setMaximumSize(100, 40)
+        get_intensity_label.setMaximumSize(110, 40)
 
         self.intensity_value = QLabel("")
         self.intensity_value.setMaximumSize(50, 40)
@@ -790,6 +841,17 @@ class MainWindow(QtWidgets.QMainWindow):
             "Сохранить данные\nспектра в файл")
         save_to_file_button.setMaximumSize(200, 80)
         save_to_file_button.clicked.connect(self.save_data_to_file)
+
+        # progress bars
+        progress_bars_layout = QVBoxLayout()
+
+        self.step_progress_bar = QProgressBar(self)
+        self.step_progress_bar.setMaximumSize(200, 80)
+        self.spectrum_progress_bar = QProgressBar(self)
+        self.spectrum_progress_bar.setMaximumSize(200, 80)
+
+        progress_bars_layout.addWidget(self.step_progress_bar)
+        progress_bars_layout.addWidget(self.spectrum_progress_bar)
 
         self.logging = QPlainTextEdit()
         self.logging.setMaximumWidth(200)
@@ -807,12 +869,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # control_layout.addLayout(termal_control_layout)
         control_layout.addLayout(set_ang_layout)
         control_layout.addLayout(get_intensity_layout)
-        
+
         control_layout.addWidget(
-            save_to_file_button, alignment=QtCore.Qt.AlignCenter)
+            save_to_file_button)
+
+        control_layout.addLayout(progress_bars_layout)
+
         control_layout.addWidget(self.logging)
         control_layout.addWidget(clear_logging_button)
-        control_layout.addWidget(self.termal_button)
+        # control_layout.addWidget(self.termal_button)
 
         layout = QHBoxLayout()
         layout.addLayout(plot_layout)
@@ -824,16 +889,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def close_window(self, event):
 
-        ret = QtWidgets.QMessageBox.warning(None, 'Внимание!', 'Лазер Выключен?',
-                                            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-                                            QtWidgets.QMessageBox.Yes)
-        if ret == QtWidgets.QMessageBox.Yes:
-            self.turn_off_termal.emit()
-            time.sleep(0.2)
-            QtWidgets.QMainWindow.closeEvent(self, event)
-        else:
-            QtWidgets.QMainWindow.closeEvent(self, event)
-            # event.ignore()
+        # ret = QtWidgets.QMessageBox.warning(None, 'Внимание!', 'Лазер Выключен?',
+        #                                     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        #                                     QtWidgets.QMessageBox.Yes)
+        # if ret == QtWidgets.QMessageBox.Yes:
+        #     self.turn_off_termal.emit()
+        #     time.sleep(0.2)
+        #     QtWidgets.QMainWindow.closeEvent(self, event)
+        # else:
+        #     QtWidgets.QMainWindow.closeEvent(self, event)
+        #     # event.ignore()
 
         self.termal.is_working = False
         self.rigol.is_working = False
