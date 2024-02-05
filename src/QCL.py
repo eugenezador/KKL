@@ -31,7 +31,6 @@ from PyQt5.QtCore import QThread, QObject, pyqtSignal as Signal, pyqtSlot as Slo
 import numpy as np
 
 import os.path
-import random
 
 
 class Xeryon_Worker():
@@ -397,6 +396,10 @@ class MainWindow(QtWidgets.QMainWindow):
     #########
     saved_spectrums_map = dict()
 
+    current_termal_temperature = 0
+    start_time = 0
+    stop_time = 0
+
     #########
     angle = []
     x = []
@@ -509,7 +512,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.logging.clear()
         self.move_Xeryon.emit(self.set_ang_line_edit.text())
 
-    def print_intergal_value(self, angle, intensity):
+    def print_intergal_value(self, intensity):
         self.intensity_value.setText(str(intensity))
 
     def start_button_clicked(self):
@@ -534,6 +537,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.graphWidget.clear()
                     self.saved_spectrums_map.clear()
 
+                self.start_time = time.time()
                 self.rigol_thread.start()
                 self.sent_start_xeryon_angle.emit(
                     round(float(self.start_line_edit.text()), 2), round(float(self.stop_line_edit.text()), 2))
@@ -550,28 +554,55 @@ class MainWindow(QtWidgets.QMainWindow):
                 deepcopy(self.angle))
             self.saved_spectrums_map[self.color_index].append(deepcopy(self.x))
             self.saved_spectrums_map[self.color_index].append(deepcopy(self.y))
+            self.saved_spectrums_map[self.color_index].append(
+                deepcopy(self.start_time))
+            self.saved_spectrums_map[self.color_index].append(
+                deepcopy(time.time()))
 
     def save_data_to_file(self):
-
-        # with open('result.json', 'w') as fp:
-        #     json.dump(self.saved_spectrums_map, fp)
-
         os.makedirs("../result", exist_ok=True)
         for key, value in self.saved_spectrums_map.items():
+
             filename = "user_spectr_" + \
-                time.strftime("%H:%M:%S-%d.%m.%Y") + '_' + \
-                str(self.color_array[key]) + ".txt"
+                time.strftime("%H:%M:%S-%d.%m.%Y") + \
+                '_' + str(key) + ".json"
             with open(os.path.join("../result", filename), "w+") as f:
-                st = "Angle" + \
-                    "\t" + "Wave_number" + "\t" + "Intensity" + "\n"
-                f.write(st)
-                for i in range(len(value[0])):
-                    st = str(float(value[0][i])) + \
-                        "\t" + str(float(value[1][i])) + \
-                        "\t" + '\t' + str(float(value[2][i])) + "\n"
-                    print(st)
-                    f.write(st)
+                jsonfile_data = []
+                jsonfile_data.append({
+                    "Laser chip temperature": self.current_termal_temperature,
+                    "Pressure inside laser cell: ": "",
+                    "Ambient temperature: ": "",
+                    "Humidity: ": "",
+                    "Environmental pressure": "",
+                    "Start time: ": value[3],
+                    "Stop time: ": value[4]
+                })
+                jsonfile_data.append({
+                    "plot_color": key,
+                    "angles": value[0],
+                    "wave_numbers": value[1],
+                    "intensity": value[2]
+                })
+                json.dump(jsonfile_data, f, indent=4)
                 f.close()
+
+    # def save_data_to_file(self):
+    #     os.makedirs("../result", exist_ok=True)
+    #     for key, value in self.saved_spectrums_map.items():
+    #         filename = "user_spectr_" + \
+    #             time.strftime("%H:%M:%S-%d.%m.%Y") + '_' + \
+    #             str(self.color_array[key]) + ".txt"
+    #         with open(os.path.join("../result", filename), "w+") as f:
+    #             st = "Angle" + \
+    #                 "\t" + "Wave_number" + "\t" + "Intensity" + "\n"
+    #             f.write(st)
+    #             for i in range(len(value[0])):
+    #                 st = str(float(value[0][i])) + \
+    #                     "\t" + str(float(value[1][i])) + \
+    #                     "\t" + '\t' + str(float(value[2][i])) + "\n"
+    #                 print(st)
+    #                 f.write(st)
+    #             f.close()
 
     is_new_tick_scale = True
 
@@ -655,6 +686,7 @@ class MainWindow(QtWidgets.QMainWindow):
     #     self.turn_off_termal.emit()
 
     def print_current_temperature(self, current_temp):
+        self.current_termal_temperature = current_temp
         str_temp = "Температура лазера= " + \
             str(current_temp) + " С || " + \
             "Установленная температура лазера = 18 C "
