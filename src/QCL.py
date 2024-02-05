@@ -70,6 +70,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
     wave_indx = 0
 
     progress_steps_amount = 0
+    persent_progress = 0
     progress_step = 0
 
     def __del__(self):
@@ -96,21 +97,34 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
     def get_start_stop_angle_value(self, start_angle, stop_angle):
         self.current_angle = round(float(start_angle), 2)
-        self.stop_angle = stop_angle
+        self.stop_angle = round(float(stop_angle), 2)
         self.angles_indx = 0
         self.wave_indx = 0
-        while round(float(self.current_angle), 2) != round(float(self.angles[self.angles_indx]), 2):
-            if round(float(self.current_angle), 2) > round(float(self.angles[self.angles_indx]), 2):
-                self.current_angle -= 0.05
-            elif self.angles_indx < len(self.angles):
-                self.angles_indx += 1
-                self.wave_indx += 1
+        self.filter_start_angle()
+        # while round(float(self.current_angle), 2) != round(float(self.angles[self.angles_indx]), 2):
+        #     if round(float(self.current_angle), 2) > round(float(self.angles[self.angles_indx]), 2):
+        #         self.current_angle -= 0.05
+        #     elif self.angles_indx < len(self.angles):
+        #         self.angles_indx += 1
+        #         self.wave_indx += 1
 
         self.progress_steps_amount = self.binary_search(
             self.angles, self.stop_angle) - self.binary_search(self.angles, self.current_angle)
         self.progress_step = 100 / self.progress_steps_amount
 
         self.axisX.setDPOS(float(self.current_angle))
+
+    def filter_start_angle(self):
+        if round(float(self.current_angle), 2) > round(float(self.angles[0]), 2):
+            self.current_angle == round(float(self.angles[0]), 2)
+        else:
+            while round(float(self.current_angle), 2) != round(float(self.angles[self.angles_indx]), 2):
+                if round(float(self.current_angle), 2) < round(float(self.angles[self.angles_indx]), 2):
+                    self.current_angle += 0.05
+        self.wave_indx = self.binary_search(self.angles, self.current_angle)
+        self.angles_indx = self.binary_search(self.angles, self.current_angle)
+
+        
 
     def from_file_to_list(self, filemane):
         list = []
@@ -122,14 +136,14 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
         return list
 
-    def binary_search(list, value):
+    def binary_search(self, list, value):
         first = 0
         last = len(list)-1
         while (first <= last):
             mid = (first+last)//2
-            if list[mid] == value:
+            if round(float(list[mid]), 2) == round(float(value), 2):
                 return mid
-            elif list[mid] > value:
+            elif round(float(list[mid]), 2) > round(float(value),2):
                 first = mid+1
             else:
                 last = mid-1
@@ -281,9 +295,10 @@ class Rigol_Worker(QObject, Xeryon_Worker):
                 self.increase_spectrum_progress_bar.emit(100)
 
             self.increase_spectrum_progress_bar.emit(
-                np.floor(self.progress_step))
-            self.progress_step += self.progress_step
-            self.reset_progress_bar.emit("step")
+                np.floor(self.persent_progress))
+            print(self.persent_progress)
+            self.persent_progress += self.progress_step
+            self.reset_progress_bar.emit()
 
         self.finish_spectrum_plotting.emit()
 
@@ -489,7 +504,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def update_spectrum_progress_bar(self, value):
         if value <= self.spectrum_progress_bar.maximum():
-            self.spectrum_progress_bar.setValue(value)
+            self.spectrum_progress_bar.setValue(int(value))
             self.spectrum_progress_bar.setFormat(
                 "Запись спектра: " + str(value) + '%')
 
@@ -526,6 +541,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.x.clear()
                 self.y.clear()
                 self.spectrum_progress_bar.reset()
+                self.rigol.persent_progress = 0
 
                 if self.several_plots_enable_cbox.isChecked():
                     if self.color_index < (len(self.color_array) - 1):
@@ -537,7 +553,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.graphWidget.clear()
                     self.saved_spectrums_map.clear()
 
-                self.start_time = time.time()
+                self.start_time = time.strftime("%H:%M:%S-%d.%m.%Y")
                 self.rigol_thread.start()
                 self.sent_start_xeryon_angle.emit(
                     round(float(self.start_line_edit.text()), 2), round(float(self.stop_line_edit.text()), 2))
@@ -557,7 +573,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.saved_spectrums_map[self.color_index].append(
                 deepcopy(self.start_time))
             self.saved_spectrums_map[self.color_index].append(
-                deepcopy(time.time()))
+                deepcopy(time.strftime("%H:%M:%S-%d.%m.%Y")))
 
     def save_data_to_file(self):
         os.makedirs("../result", exist_ok=True)
@@ -565,7 +581,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             filename = "user_spectr_" + \
                 time.strftime("%H:%M:%S-%d.%m.%Y") + \
-                '_' + str(key) + ".json"
+                '_' + str(self.color_array[key]) + ".json"
             with open(os.path.join("../result", filename), "w+") as f:
                 jsonfile_data = []
                 jsonfile_data.append({
@@ -578,7 +594,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     "Stop time: ": value[4]
                 })
                 jsonfile_data.append({
-                    "plot_color": key,
+                    "plot_color": self.color_array[key],
                     "angles": value[0],
                     "wave_numbers": value[1],
                     "intensity": value[2]
