@@ -118,13 +118,21 @@ class Rigol_Worker(QObject, Xeryon_Worker):
         if round(float(self.current_angle), 2) > round(float(self.angles[0]), 2):
             self.current_angle == round(float(self.angles[0]), 2)
         else:
-            while round(float(self.current_angle), 2) != round(float(self.angles[self.angles_indx]), 2):
-                if round(float(self.current_angle), 2) < round(float(self.angles[self.angles_indx]), 2):
-                    self.current_angle += 0.05
-        self.wave_indx = self.binary_search(self.angles, self.current_angle)
-        self.angles_indx = self.binary_search(self.angles, self.current_angle)
+            while self.angles_indx == -1 and round(float(self.current_angle), 2) < round(float(self.angles[0]), 2):
+                self.current_angle += 0.05
+                self.angles_indx = self.binary_search(
+                    self.angles, self.current_angle)
+        self.wave_indx = self.angles_indx
 
-        
+    def filter_stop_angle(self):
+        if round(float(self.stop_angle), 2) < round(float(self.angles[len(self.angles) - 1]), 2):
+            self.stop_angle == round(
+                float(self.angles[len(self.angles) - 1]), 2)
+        else:
+            while self.binary_search(
+                    self.angles, self.stop_angle) == -1 and round(float(self.stop_angle), 2) > round(
+                    float(self.angles[len(self.angles) - 1]), 2):
+                self.stop_angle -= 0.05
 
     def from_file_to_list(self, filemane):
         list = []
@@ -143,7 +151,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             mid = (first+last)//2
             if round(float(list[mid]), 2) == round(float(value), 2):
                 return mid
-            elif round(float(list[mid]), 2) > round(float(value),2):
+            elif round(float(list[mid]), 2) > round(float(value), 2):
                 first = mid+1
             else:
                 last = mid-1
@@ -586,10 +594,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 jsonfile_data = []
                 jsonfile_data.append({
                     "Laser chip temperature": self.current_termal_temperature,
-                    "Pressure inside laser cell: ": "",
-                    "Ambient temperature: ": "",
-                    "Humidity: ": "",
-                    "Environmental pressure": "",
+                    "Pressure inside laser cell: ": self.line_edit1.text(),
+                    "Ambient temperature: ": self.line_edit2.text(),
+                    "Humidity: ": self.line_edit3.text(),
+                    "Environmental pressure": self.line_edit4.text(),
                     "Start time: ": value[3],
                     "Stop time: ": value[4]
                 })
@@ -784,10 +792,43 @@ class MainWindow(QtWidgets.QMainWindow):
         new_layout.addWidget(self.several_plots_enable_cbox)
         new_layout.addWidget(self.clear_plot_button)
 
+        # Experimental data
+        h1layout = QHBoxLayout()
+        self.l1 = QLabel("Давление внутри клюветы лазера: ")
+        # self.l1.setMaximumSize(200, 40)
+        self.line_edit1 = QLineEdit("110.05")
+        # self.line_edit1.setMaximumSize(200, 40)
+
+        self.l2 = QLabel("Температура окружающей среды: ")
+        # self.l2.setMaximumSize(200, 40)
+        self.line_edit2 = QLineEdit("110.05")
+        # self.line_edit2.setMaximumSize(200, 40)
+        h1layout.addWidget(self.l1)
+        h1layout.addWidget(self.line_edit1)
+        h1layout.addWidget(self.l2)
+        h1layout.addWidget(self.line_edit2)
+
+        h2layout = QHBoxLayout()
+        self.l3 = QLabel("Влажность: ")
+        # self.l3.setMaximumSize(200, 40)
+        self.line_edit3 = QLineEdit("110.05")
+        # self.line_edit3.setMaximumSize(200, 40)
+
+        self.l4 = QLabel("Давление окружающей среды: ")
+        # self.l4.setMaximumSize(200, 40)
+        self.line_edit4 = QLineEdit("110.05")
+        # self.line_edit4.setMaximumSize(200, 40)
+        h2layout.addWidget(self.l3)
+        h2layout.addWidget(self.line_edit3)
+        h2layout.addWidget(self.l4)
+        h2layout.addWidget(self.line_edit4)
+
         plot_layout = QVBoxLayout()
         plot_layout.addLayout(device_list_layout)
         plot_layout.addWidget(self.graphWidget)
         plot_layout.addLayout(new_layout)
+        plot_layout.addLayout(h1layout)
+        plot_layout.addLayout(h2layout)
         plot_layout.addWidget(self.device_choice)
 
         #########
