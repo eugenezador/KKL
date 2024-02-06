@@ -50,7 +50,7 @@ class Xeryon_Worker():
 class Rigol_Worker(QObject, Xeryon_Worker):
     sent_avarage_integral_value = Signal(float, float, float)
 
-    sent_intergal_value = Signal(float, float)
+    sent_intergal_value = Signal(float)
 
     sent_logging_info = Signal(str)
 
@@ -101,12 +101,8 @@ class Rigol_Worker(QObject, Xeryon_Worker):
         self.angles_indx = 0
         self.wave_indx = 0
         self.filter_start_angle()
-        # while round(float(self.current_angle), 2) != round(float(self.angles[self.angles_indx]), 2):
-        #     if round(float(self.current_angle), 2) > round(float(self.angles[self.angles_indx]), 2):
-        #         self.current_angle -= 0.05
-        #     elif self.angles_indx < len(self.angles):
-        #         self.angles_indx += 1
-        #         self.wave_indx += 1
+        self.filter_stop_angle()
+        print('0 indx = ' + str(self.binary_search(self.angles, 118.95)))
 
         self.progress_steps_amount = self.binary_search(
             self.angles, self.stop_angle) - self.binary_search(self.angles, self.current_angle)
@@ -117,22 +113,33 @@ class Rigol_Worker(QObject, Xeryon_Worker):
     def filter_start_angle(self):
         if round(float(self.current_angle), 2) > round(float(self.angles[0]), 2):
             self.current_angle == round(float(self.angles[0]), 2)
+            self.angles_indx = 0
+            self.wave_indx = 0
         else:
+            self.angles_indx = self.binary_search(
+                    self.angles, self.current_angle)
             while self.angles_indx == -1 and round(float(self.current_angle), 2) < round(float(self.angles[0]), 2):
                 self.current_angle += 0.05
+                print('current ang = ' + str(self.current_angle))
                 self.angles_indx = self.binary_search(
-                    self.angles, self.current_angle)
-        self.wave_indx = self.angles_indx
+                    self.angles, self.current_angle) 
+            self.wave_indx = self.angles_indx
 
     def filter_stop_angle(self):
         if round(float(self.stop_angle), 2) < round(float(self.angles[len(self.angles) - 1]), 2):
-            self.stop_angle == round(
+            self.stop_angle = round(
                 float(self.angles[len(self.angles) - 1]), 2)
+            print('00 stop = '+ str( round(
+                float(self.angles[len(self.angles) - 1]), 2)))
+            
+            print('0stop angle = ' + str(self.stop_angle))
         else:
+            
             while self.binary_search(
                     self.angles, self.stop_angle) == -1 and round(float(self.stop_angle), 2) > round(
                     float(self.angles[len(self.angles) - 1]), 2):
                 self.stop_angle -= 0.05
+        print('stop angle = ' + str(self.stop_angle))
 
     def from_file_to_list(self, filemane):
         list = []
@@ -275,7 +282,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.sent_logging_info.emit(
                 "current angle: " + str(value))
             self.sent_intergal_value.emit(
-                round(float(value), 2), round(self.avarage_integral_calc(), 2))
+                round(self.avarage_integral_calc(), 2))
 
     def step_motor(self):
         if self.is_Rigol_exist and self.is_Xeryon_exist:
@@ -284,8 +291,6 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.current_angle = self.angles[self.angles_indx]
             self.sent_logging_info.emit(
                 "current angle: " + self.angles[self.angles_indx])
-            self.angles_indx += 1
-            self.wave_indx += 1
 
     @Slot()
     def do_work(self):
@@ -295,7 +300,14 @@ class Rigol_Worker(QObject, Xeryon_Worker):
                 self.is_working = False
                 break
             time.sleep(0.1)
+
+
             self.step_motor()
+
+            print('wave index == ' + str(self.wave_indx))
+            print('angles index == ' + str(self.angles_indx))
+
+            
             self.sent_avarage_integral_value.emit(round(float(self.current_angle), 2), int(
                 self.wave_numbers[self.wave_indx]), self.avarage_integral_calc())
 
@@ -307,6 +319,8 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             print(self.persent_progress)
             self.persent_progress += self.progress_step
             self.reset_progress_bar.emit()
+            self.angles_indx += 1
+            self.wave_indx += 1
 
         self.finish_spectrum_plotting.emit()
 
@@ -533,17 +547,38 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def set_ang_button_clicked(self):
         # self.logging.clear()
-        self.move_Xeryon.emit(self.set_ang_line_edit.text())
+        regnumber = re.compile(r'^(?=.*[a-zA-Z])')
+        self.set_ang_line_edit.setStyleSheet("color: black;")
+        if regnumber.match(str(self.set_ang_line_edit.text())):
+            self.set_ang_line_edit.setStyleSheet("color: red;")
+            self.logging.appendPlainText("!!!  Неверный формат ввода угла !!!")
+            time.sleep(0.1)
+        else:
+            # self.set_ang_line_edit.setStyleSheet("color: black;")
+            self.move_Xeryon.emit(self.set_ang_line_edit.text())
 
     def print_intergal_value(self, intensity):
         self.intensity_value.setText(str(intensity))
 
     def start_button_clicked(self):
         if self.rigol.is_Xeryon_exist:
-            if re.findall("\d+\.\d+", str(self.start_line_edit.text())) == "" or re.findall("\d+\.\d+", str(self.stop_line_edit.text())) == "":
-                self.label_status.setText("Введите число в фромате dddd.dddd")
+            regnumber = re.compile(r'^(?=.*[a-zA-Z])')
+
+            if regnumber.match(str(self.start_line_edit.text())):
+                self.start_line_edit.setStyleSheet("color: red;")
+                self.logging.appendPlainText("!!!  Неверный формат ввода начального угла !!!")
                 time.sleep(0.1)
             else:
+                self.start_line_edit.setStyleSheet("color: black;")
+
+            if regnumber.match(self.stop_line_edit.text()):
+                self.stop_line_edit.setStyleSheet("color: red;")
+                self.logging.appendPlainText("!!!  Неверный формат конечного угла !!!")
+                time.sleep(0.1)
+            else:
+                self.stop_line_edit.setStyleSheet("color: black;")
+
+            if not regnumber.match(self.start_line_edit.text()) and  not regnumber.match(self.stop_line_edit.text()):
                 self.angle.clear()
                 self.is_new_tick_scale = True
                 self.x.clear()
@@ -594,7 +629,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 jsonfile_data = []
                 jsonfile_data.append({
                     "Laser chip temperature": self.current_termal_temperature,
-                    "Pressure inside laser cell: ": self.line_edit1.text(),
+                    "Pressure inside cell: ": self.line_edit1.text(),
                     "Ambient temperature: ": self.line_edit2.text(),
                     "Humidity: ": self.line_edit3.text(),
                     "Environmental pressure": self.line_edit4.text(),
@@ -636,7 +671,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.y.append(float(avarage_integral))
         print(float(avarage_integral))
 
-        if len(self.x) > 2 and self.is_new_tick_scale:
+        if len(self.x) > 20 and self.is_new_tick_scale:
             self.graphWidget.getAxis("bottom").setTickSpacing(
                 levels=[(22, 0)])
             self.graphWidget.getAxis("left").setTickSpacing(
@@ -736,6 +771,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def init_widgets(self):
         self.setWindowIcon(
             QtGui.QIcon('KKL.png'))
+        self.setWindowTitle("QCL")
+        self.setMinimumSize(800, 700) 
+        
+
 
         self.graphWidget = pg.PlotWidget()
         self.graphWidget.setBackground('w')
@@ -794,14 +833,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Experimental data
         h1layout = QHBoxLayout()
-        self.l1 = QLabel("Давление внутри клюветы лазера: ")
+        self.l1 = QLabel("Давление внутри клюветы: ")
         # self.l1.setMaximumSize(200, 40)
-        self.line_edit1 = QLineEdit("110.05")
+        self.line_edit1 = QLineEdit("-")
         # self.line_edit1.setMaximumSize(200, 40)
 
         self.l2 = QLabel("Температура окружающей среды: ")
         # self.l2.setMaximumSize(200, 40)
-        self.line_edit2 = QLineEdit("110.05")
+        self.line_edit2 = QLineEdit("-")
         # self.line_edit2.setMaximumSize(200, 40)
         h1layout.addWidget(self.l1)
         h1layout.addWidget(self.line_edit1)
@@ -811,12 +850,12 @@ class MainWindow(QtWidgets.QMainWindow):
         h2layout = QHBoxLayout()
         self.l3 = QLabel("Влажность: ")
         # self.l3.setMaximumSize(200, 40)
-        self.line_edit3 = QLineEdit("110.05")
+        self.line_edit3 = QLineEdit("-")
         # self.line_edit3.setMaximumSize(200, 40)
 
         self.l4 = QLabel("Давление окружающей среды: ")
         # self.l4.setMaximumSize(200, 40)
-        self.line_edit4 = QLineEdit("110.05")
+        self.line_edit4 = QLineEdit("-")
         # self.line_edit4.setMaximumSize(200, 40)
         h2layout.addWidget(self.l3)
         h2layout.addWidget(self.line_edit3)
