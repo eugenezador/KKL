@@ -102,7 +102,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
         self.wave_indx = 0
         self.filter_start_angle()
         self.filter_stop_angle()
-        print('0 indx = ' + str(self.binary_search(self.angles, 118.95)))
+        # print('0 indx = ' + str(self.binary_search(self.angles, 118.95)))
 
         self.progress_steps_amount = self.binary_search(
             self.angles, self.stop_angle) - self.binary_search(self.angles, self.current_angle)
@@ -112,29 +112,26 @@ class Rigol_Worker(QObject, Xeryon_Worker):
 
     def filter_start_angle(self):
         if round(float(self.current_angle), 2) > round(float(self.angles[0]), 2):
-            self.current_angle == round(float(self.angles[0]), 2)
+            self.current_angle = round(float(self.angles[0]), 2)
             self.angles_indx = 0
             self.wave_indx = 0
         else:
             self.angles_indx = self.binary_search(
-                    self.angles, self.current_angle)
+                self.angles, self.current_angle)
             while self.angles_indx == -1 and round(float(self.current_angle), 2) < round(float(self.angles[0]), 2):
                 self.current_angle += 0.05
                 print('current ang = ' + str(self.current_angle))
                 self.angles_indx = self.binary_search(
-                    self.angles, self.current_angle) 
+                    self.angles, self.current_angle)
             self.wave_indx = self.angles_indx
+        print('start angle = ' + str(self.current_angle))
 
     def filter_stop_angle(self):
         if round(float(self.stop_angle), 2) < round(float(self.angles[len(self.angles) - 1]), 2):
             self.stop_angle = round(
                 float(self.angles[len(self.angles) - 1]), 2)
-            print('00 stop = '+ str( round(
-                float(self.angles[len(self.angles) - 1]), 2)))
-            
-            print('0stop angle = ' + str(self.stop_angle))
         else:
-            
+
             while self.binary_search(
                     self.angles, self.stop_angle) == -1 and round(float(self.stop_angle), 2) > round(
                     float(self.angles[len(self.angles) - 1]), 2):
@@ -263,6 +260,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
                 integral = float(self.intergal_per_area())
                 self.sent_logging_info.emit(str(integral))
                 self.increase_step_progress_bar.emit(avarage_counter * 10)
+
                 # print(integral)
                 avarage_counter += 1
                 if integral > 0.5 and integral < 6:
@@ -284,6 +282,8 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.sent_intergal_value.emit(
                 round(self.avarage_integral_calc(), 2))
 
+            self.increase_step_progress_bar.emit(100)
+
     def step_motor(self):
         if self.is_Rigol_exist and self.is_Xeryon_exist:
             self.axisX.setDPOS(self.angles[self.angles_indx])
@@ -301,16 +301,15 @@ class Rigol_Worker(QObject, Xeryon_Worker):
                 break
             time.sleep(0.1)
 
-
             self.step_motor()
 
-            print('wave index == ' + str(self.wave_indx))
-            print('angles index == ' + str(self.angles_indx))
+            # print('wave index == ' + str(self.wave_indx))
+            # print('angles index == ' + str(self.angles_indx))
 
-            
             self.sent_avarage_integral_value.emit(round(float(self.current_angle), 2), int(
                 self.wave_numbers[self.wave_indx]), self.avarage_integral_calc())
 
+            print("current angle = " + str(self.current_angle))
             if round(float(self.current_angle), 2) == round(float(self.stop_angle), 2):
                 self.increase_spectrum_progress_bar.emit(100)
 
@@ -566,19 +565,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
             if regnumber.match(str(self.start_line_edit.text())):
                 self.start_line_edit.setStyleSheet("color: red;")
-                self.logging.appendPlainText("!!!  Неверный формат ввода начального угла !!!")
+                self.logging.appendPlainText(
+                    "!!!  Неверный формат ввода начального угла !!!")
                 time.sleep(0.1)
             else:
                 self.start_line_edit.setStyleSheet("color: black;")
 
             if regnumber.match(self.stop_line_edit.text()):
                 self.stop_line_edit.setStyleSheet("color: red;")
-                self.logging.appendPlainText("!!!  Неверный формат конечного угла !!!")
+                self.logging.appendPlainText(
+                    "!!!  Неверный формат конечного угла !!!")
                 time.sleep(0.1)
             else:
                 self.stop_line_edit.setStyleSheet("color: black;")
 
-            if not regnumber.match(self.start_line_edit.text()) and  not regnumber.match(self.stop_line_edit.text()):
+            if not regnumber.match(self.start_line_edit.text()) and not regnumber.match(self.stop_line_edit.text()):
                 self.angle.clear()
                 self.is_new_tick_scale = True
                 self.x.clear()
@@ -772,9 +773,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowIcon(
             QtGui.QIcon('KKL.png'))
         self.setWindowTitle("QCL")
-        self.setMinimumSize(800, 700) 
-        
-
+        self.setMinimumSize(800, 700)
 
         self.graphWidget = pg.PlotWidget()
         self.graphWidget.setBackground('w')
