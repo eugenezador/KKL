@@ -16,6 +16,7 @@ pip3 install pyserial
 pip3 install numpy
 pip3 install tqdm
 pip3 install PyQt5
+# sudo apt-get install python3-pyqt5 # ubuntu 18
 pip3 install pyqtgraph
 sudo apt update
 sudo apt install qtbase5-dev qt5-qmake

@@ -306,8 +306,8 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             # print('wave index == ' + str(self.wave_indx))
             # print('angles index == ' + str(self.angles_indx))
 
-            self.sent_avarage_integral_value.emit(round(float(self.current_angle), 2), int(
-                self.wave_numbers[self.wave_indx]), self.avarage_integral_calc())
+            self.sent_avarage_integral_value.emit(round(float(self.current_angle), 2),
+                round(float(self.wave_numbers[self.wave_indx]), 2), self.avarage_integral_calc())
 
             print("current angle = " + str(self.current_angle))
             if round(float(self.current_angle), 2) == round(float(self.stop_angle), 2):
