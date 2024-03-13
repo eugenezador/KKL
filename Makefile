@@ -7,6 +7,9 @@ install:
 build:
 	src/build.sh
 
+run: build
+	cd QCL && ./QCL
+
 rebuild:
 	rm -rf build/
 	rm -f QCL.spec
