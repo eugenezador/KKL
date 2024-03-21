@@ -90,6 +90,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
     def init_Rigol(self):
         if glob('/dev/usbtmc*'):
             self.osc = rigol2000a.Rigol2072a()
+            print("my rigol channels = " + str(self.osc._channels))
             # Change voltage range of channel 1 to 50mV/div.
             self.osc[1].set_vertical_scale_V(0.05)
             self.osc[2].set_vertical_scale_V(0.05)
@@ -191,12 +192,14 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             ch1_sum = self.calculate_trapezoidal_sum(self.ch1_x, self.ch1_y)
             ch2_sum = self.calculate_trapezoidal_sum(self.ch2_x, self.ch2_y)
 
-            if float(ch2_sum) != 0:
-                result = float(ch1_sum) / float(ch2_sum)
+            # if float(ch2_sum) != 0:
+            result = float(ch1_sum) 
+                # / float(ch2_sum)
 
-            else:
-                print("<< devision by zero >>")
-                self.calc_error = True
+            # else:
+            #     # result = float(ch1_sum)
+            #     print("<< devision by zero >>")
+            #     self.calc_error = True
 
         return result
 
@@ -258,14 +261,17 @@ class Rigol_Worker(QObject, Xeryon_Worker):
         if self.is_Rigol_exist:
             for avarage_counter in range(0, 10):
                 integral = float(self.intergal_per_area())
+                print("integral == " + str(integral))
                 self.sent_logging_info.emit(str(integral))
                 self.increase_step_progress_bar.emit(avarage_counter * 10)
 
                 # print(integral)
                 avarage_counter += 1
-                if integral > 0.5 and integral < 6:
-                    res += float(integral)
+                # if integral > 0.5 and integral < 6:
+                res += float(integral)
             res = float(res) / avarage_counter
+            res *= pow(10, 9)
+            print("res == " + str(res))
 
         # print("intensty: " + str(res))
         self.sent_logging_info.emit("intensty: " + str(res))
@@ -675,8 +681,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if len(self.x) > 20 and self.is_new_tick_scale:
             self.graphWidget.getAxis("bottom").setTickSpacing(
                 levels=[(22, 0)])
-            self.graphWidget.getAxis("left").setTickSpacing(
-                levels=[(0.1, 0)])
+            # self.graphWidget.getAxis("left").setTickSpacing(
+            #     levels=[(20, 0)])
             self.is_new_tick_scale = False
 
         if self.several_plots_enable_cbox.isChecked():
@@ -877,7 +883,7 @@ class MainWindow(QtWidgets.QMainWindow):
         start_angle_value_layout = QHBoxLayout()
         self.start_label = QLabel("Начальный угол: ")
         self.start_label.setMaximumSize(200, 40)
-        self.start_line_edit = QLineEdit("110.05")
+        self.start_line_edit = QLineEdit("113")
         self.start_line_edit.setMaximumSize(80, 40)
         start_angle_value_layout.addWidget(
             self.start_label, alignment=QtCore.Qt.AlignCenter)
@@ -888,7 +894,7 @@ class MainWindow(QtWidgets.QMainWindow):
         stop_angle_value_layout = QHBoxLayout()
         self.stop_label = QLabel("Конечный угол: ")
         self.stop_label.setMaximumSize(300, 40)
-        self.stop_line_edit = QLineEdit("93.75")
+        self.stop_line_edit = QLineEdit("93")
         self.stop_line_edit.setMaximumSize(80, 40)
         stop_angle_value_layout.addWidget(
             self.stop_label, alignment=QtCore.Qt.AlignCenter)

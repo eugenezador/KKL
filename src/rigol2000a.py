@@ -74,6 +74,7 @@ class _Usbtmc(object):
 
 class _Rigol2072aChannel:
     def __init__(self, channel, osc):
+        # print("chan num  == " + str(channel))
         self._channel = channel
         self._osc = osc
 
