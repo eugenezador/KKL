@@ -990,7 +990,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logging.setMaximumWidth(200)
 
         clear_logging_button = QPushButton(
-            "Очистить терманал",  clicked=self.logging.clear)
+            "Очистить терминал",  clicked=self.logging.clear)
         clear_logging_button.setMaximumSize(200, 40)
 
         control_layout = QVBoxLayout()
