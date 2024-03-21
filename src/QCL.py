@@ -135,6 +135,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
         self.get_data_for_integral(filename, 1, self.ch1_x, self.ch1_y)
 
         self.move_integral_data(self.ch1_y)
+        self.move_integral_data(self.ch1_x)
 
     def move_integral_data(self, y_array):
         if np.any(y_array):
@@ -214,7 +215,7 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             self.sent_logging_info.emit(
                 "current angle: " + str(value))
             self.intergal_per_area()
-            self.sent_pick_list.emit(self.ch1_x, self.ch1_y)
+            self.sent_pick_list.emit(self.ch1_x[:int(len(self.ch1_x)/2)], self.ch1_y[:int(len(self.ch1_y)/2)])
 
     step = 0.05
 
@@ -235,9 +236,10 @@ class Rigol_Worker(QObject, Xeryon_Worker):
             time.sleep(0.1)
             for i in range(1, 10):
                 self.step_motor()
-                self.sent_pick_list.emit(self.ch1_x, self.ch1_y)
+                # self.sent_pick_list.emit(self.ch1_x, self.ch1_y)
+                self.sent_pick_list.emit(self.ch1_x[:int(len(self.ch1_x)/2)], self.ch1_y[:int(len(self.ch1_y)/2)])
 
-            self.save_png.emit(self.current_angle)
+            # self.save_png.emit(self.current_angle)
             self.current_angle -= self.step
             self.reset_color_index.emit()
             self.clear_plot.emit()
@@ -643,7 +645,7 @@ class MainWindow(QtWidgets.QMainWindow):
         start_angle_value_layout = QHBoxLayout()
         self.start_label = QLabel("Начальный угол: ")
         self.start_label.setMaximumSize(200, 40)
-        self.start_line_edit = QLineEdit("110")
+        self.start_line_edit = QLineEdit("113")
         self.start_line_edit.setMaximumSize(80, 40)
         start_angle_value_layout.addWidget(
             self.start_label, alignment=QtCore.Qt.AlignCenter)
@@ -654,7 +656,7 @@ class MainWindow(QtWidgets.QMainWindow):
         stop_angle_value_layout = QHBoxLayout()
         self.stop_label = QLabel("Конечный угол: ")
         self.stop_label.setMaximumSize(300, 40)
-        self.stop_line_edit = QLineEdit("93.75")
+        self.stop_line_edit = QLineEdit("93")
         self.stop_line_edit.setMaximumSize(80, 40)
         stop_angle_value_layout.addWidget(
             self.stop_label, alignment=QtCore.Qt.AlignCenter)
